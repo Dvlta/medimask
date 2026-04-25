@@ -8,6 +8,7 @@ struct HomeView: View {
     @State private var isShowingResult = false
     @State private var isScanning = false
     @State private var errorMessage: String?
+    @State private var hasCompletedScan = false
 
     private let pipeline = ImageProcessingPipeline()
 
@@ -16,7 +17,9 @@ struct HomeView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     heroSection
-                    PhotoPickerView(selectedImage: $selectedImage)
+                    PhotoPickerView(selectedImage: $selectedImage) { message in
+                        errorMessage = message
+                    }
                     scanSection
                     summarySection
                 }
@@ -28,6 +31,10 @@ struct HomeView: View {
                 if let result = detectionResult {
                     ResultView(result: result)
                 }
+            }
+            .onChange(of: selectedImage) { _, _ in
+                detectionResult = nil
+                hasCompletedScan = false
             }
             .alert("Scan Error", isPresented: errorBinding) {
                 Button("OK", role: .cancel) {
@@ -49,6 +56,9 @@ struct HomeView: View {
             Label("Designed to work offline", systemImage: "airplane")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.blue)
+            Label("Processed on-device. No upload required.", systemImage: "lock.shield")
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(.green)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
@@ -82,7 +92,7 @@ struct HomeView: View {
             } label: {
                 HStack {
                     Image(systemName: "viewfinder")
-                    Text(isScanning ? "Scanning Locally..." : "Scan Photo")
+                    Text(isScanning ? "Scanning locally..." : "Scan Photo")
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -91,6 +101,19 @@ struct HomeView: View {
 
             if isScanning {
                 ProcessingStatusView(message: "Running face detection, OCR, and PHI rules on-device...")
+            }
+
+            if hasCompletedScan, detectionResult != nil {
+                Button {
+                    isShowingResult = true
+                } label: {
+                    HStack {
+                        Image(systemName: "wand.and.stars")
+                        Text("Scrub Photo")
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
             }
         }
         .padding(20)
@@ -110,7 +133,7 @@ struct HomeView: View {
                     Text(line)
                         .foregroundStyle(.secondary)
                 }
-                Button("Review Scrubbed Result") {
+                Button("Open Result") {
                     isShowingResult = true
                 }
                 .buttonStyle(.bordered)
@@ -136,6 +159,10 @@ struct HomeView: View {
     }
 
     private func detectionSummaryLines(for result: DetectionResult) -> [String] {
+        let faceCount = result.regions.filter { $0.type == .face }.count
+        let textCount = result.regions.filter { $0.type == .phiText }.count
+        let objectCount = result.regions.filter { $0.type == .object }.count
+
         let grouped = Dictionary(grouping: result.regions, by: \.label)
         let summary = grouped
             .keys
@@ -143,7 +170,12 @@ struct HomeView: View {
             .map { label in
                 "\(label): \(grouped[label]?.count ?? 0)"
             }
-        return summary + ["Total: \(result.regions.count) regions"]
+        return [
+            "Detected:",
+            "- Faces: \(faceCount)",
+            "- PHI text: \(textCount)",
+            "- Objects: \(objectCount)"
+        ] + summary + ["Total: \(result.regions.count) regions"]
     }
 
     @MainActor
@@ -152,10 +184,11 @@ struct HomeView: View {
 
         isScanning = true
         detectionResult = nil
+        hasCompletedScan = false
 
         do {
             detectionResult = try await pipeline.process(image: selectedImage)
-            isShowingResult = true
+            hasCompletedScan = true
         } catch {
             errorMessage = error.localizedDescription
         }

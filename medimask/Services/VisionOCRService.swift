@@ -3,7 +3,7 @@ import Vision
 
 final class VisionOCRService {
     func recognizeText(in image: UIImage) async throws -> [OCRTextObservation] {
-        guard let cgImage = image.cgImage else { return [] }
+        guard let requestHandler = makeImageRequestHandler(for: image) else { return [] }
 
         return try await withCheckedThrowingContinuation { continuation in
             let request = VNRecognizeTextRequest { request, error in
@@ -39,12 +39,31 @@ final class VisionOCRService {
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = true
 
-            let handler = VNImageRequestHandler(cgImage: cgImage, options: [:])
             do {
-                try handler.perform([request])
+                try requestHandler.perform([request])
             } catch {
                 continuation.resume(throwing: error)
             }
         }
+    }
+
+    private func makeImageRequestHandler(for image: UIImage) -> VNImageRequestHandler? {
+        if let cgImage = image.cgImage {
+            return VNImageRequestHandler(cgImage: cgImage, options: [:])
+        }
+
+        if let ciImage = image.ciImage {
+            return VNImageRequestHandler(ciImage: ciImage, options: [:])
+        }
+
+        let renderedImage = UIGraphicsImageRenderer(size: image.size).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }
+
+        guard let fallbackCGImage = renderedImage.cgImage else {
+            return nil
+        }
+
+        return VNImageRequestHandler(cgImage: fallbackCGImage, options: [:])
     }
 }

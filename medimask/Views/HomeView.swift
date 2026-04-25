@@ -71,8 +71,9 @@ struct HomeView: View {
     private var scanSection: some View {
         VStack(alignment: .leading, spacing: 16) {
             if let selectedImage {
+                let reviewImage = detectionResult?.originalImage ?? selectedImage
                 ReviewView(
-                    image: selectedImage,
+                    image: reviewImage,
                     regions: detectionResult?.regions ?? []
                 )
             } else {

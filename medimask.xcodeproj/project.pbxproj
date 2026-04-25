@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		E13528112F9D4BA600765D94 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E13528102F9D4BA600765D94 /* Accelerate.framework */; };
+		E13528132F9D521C00765D94 /* ZeticMLange in Frameworks */ = {isa = PBXBuildFile; productRef = E13528122F9D521C00765D94 /* ZeticMLange */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		E135270D2F9CA9D700765D94 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -27,6 +32,7 @@
 		E13526FC2F9CA9D600765D94 /* medimask.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = medimask.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E135270C2F9CA9D700765D94 /* medimaskTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = medimaskTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E13527162F9CA9D700765D94 /* medimaskUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = medimaskUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E13528102F9D4BA600765D94 /* Accelerate.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Accelerate.framework; path = System/Library/Frameworks/Accelerate.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -52,6 +58,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E13528132F9D521C00765D94 /* ZeticMLange in Frameworks */,
+				E13528112F9D4BA600765D94 /* Accelerate.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -78,6 +86,7 @@
 				E13526FE2F9CA9D600765D94 /* medimask */,
 				E135270F2F9CA9D700765D94 /* medimaskTests */,
 				E13527192F9CA9D700765D94 /* medimaskUITests */,
+				E135280F2F9D4BA600765D94 /* Frameworks */,
 				E13526FD2F9CA9D600765D94 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +99,14 @@
 				E13527162F9CA9D700765D94 /* medimaskUITests.xctest */,
 			);
 			name = Products;
+			sourceTree = "<group>";
+		};
+		E135280F2F9D4BA600765D94 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				E13528102F9D4BA600765D94 /* Accelerate.framework */,
+			);
+			name = Frameworks;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -112,6 +129,7 @@
 			);
 			name = medimask;
 			packageProductDependencies = (
+				E13528122F9D521C00765D94 /* ZeticMLange */,
 			);
 			productName = medimask;
 			productReference = E13526FC2F9CA9D600765D94 /* medimask.app */;
@@ -195,6 +213,9 @@
 			);
 			mainGroup = E13526F32F9CA9D600765D94;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				E135280E2F9D4B4A00765D94 /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E13526FD2F9CA9D600765D94 /* Products */;
 			projectDirPath = "";
@@ -396,11 +417,12 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"medimask/Preview Content\"";
+				DEVELOPMENT_TEAM = KR4TBUUW5R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_MelangeFaceModelName = "google/MediaPipe-Face-Detection";
 				INFOPLIST_KEY_MelangeFaceModelVersion = "";
-				INFOPLIST_KEY_MelangePersonalKey = "";
+				INFOPLIST_KEY_MelangePersonalKey = ztp_7c8dae5533ee422db0e42d8b52337741;
 				INFOPLIST_KEY_NSCameraUsageDescription = "MediMask uses the camera to capture healthcare-related photos for local PHI redaction.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "MediMask can save scrubbed photos back to your library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "MediMask imports photos so it can detect and redact sensitive health information locally.";
@@ -414,7 +436,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = UCLA.medimask;
+				PRODUCT_BUNDLE_IDENTIFIER = UCLA.leosun.medimask;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -430,11 +452,12 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"medimask/Preview Content\"";
+				DEVELOPMENT_TEAM = KR4TBUUW5R;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_MelangeFaceModelName = "google/MediaPipe-Face-Detection";
 				INFOPLIST_KEY_MelangeFaceModelVersion = "";
-				INFOPLIST_KEY_MelangePersonalKey = "";
+				INFOPLIST_KEY_MelangePersonalKey = ztp_7c8dae5533ee422db0e42d8b52337741;
 				INFOPLIST_KEY_NSCameraUsageDescription = "MediMask uses the camera to capture healthcare-related photos for local PHI redaction.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "MediMask can save scrubbed photos back to your library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "MediMask imports photos so it can detect and redact sensitive health information locally.";
@@ -448,7 +471,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = UCLA.medimask;
+				PRODUCT_BUNDLE_IDENTIFIER = UCLA.leosun.medimask;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -564,6 +587,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E135280E2F9D4B4A00765D94 /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/zetic-ai/ZeticMLangeiOS";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.6.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E13528122F9D521C00765D94 /* ZeticMLange */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E135280E2F9D4B4A00765D94 /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */;
+			productName = ZeticMLange;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E13526F42F9CA9D600765D94 /* Project object */;
 }

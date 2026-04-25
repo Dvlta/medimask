@@ -1,6 +1,12 @@
 import CoreGraphics
 import UIKit
 import Vision
+#if canImport(ZeticMLange)
+import ZeticMLange
+#endif
+#if canImport(ext)
+import ext
+#endif
 
 struct FaceDetectionReport {
     let regions: [RedactionRegion]
@@ -40,14 +46,24 @@ final class MelangeFaceDetector {
         in image: UIImage,
         startedAt: CFAbsoluteTime
     ) async throws -> FaceDetectionReport? {
-        _ = image
-        _ = startedAt
+        let configuration = MelangeConfiguration.faceDetection
+        guard configuration.isConfigured else {
+            Logger.app.info("Melange face detection skipped because configuration is missing.")
+            return nil
+        }
 
-        // Melange is the preferred on-device detector for the hackathon track, but this
-        // repository does not currently include the SDK or a linked model wrapper. Keep the
-        // integration seam here so the pipeline API stays stable and the fallback path remains
-        // honest: if no real Melange implementation is present, we immediately use Vision.
+        #if canImport(ZeticMLange) && canImport(ext)
+        return try detectWithMelange(
+            in: image,
+            configuration: configuration,
+            startedAt: startedAt
+        )
+        #else
+        Logger.app.info(
+            "Melange face detection configured but SDK/wrapper is unavailable in this build. Falling back to Vision."
+        )
         return nil
+        #endif
     }
 
     private func detectWithVision(in image: UIImage) throws -> [RedactionRegion] {
@@ -116,3 +132,167 @@ final class MelangeFaceDetector {
 enum FaceDetectionError: Error {
     case unsupportedImage
 }
+
+#if canImport(ZeticMLange) && canImport(ext)
+private extension MelangeFaceDetector {
+    func detectWithMelange(
+        in image: UIImage,
+        configuration: MelangeConfiguration,
+        startedAt: CFAbsoluteTime
+    ) throws -> FaceDetectionReport {
+        // ZETIC's face detection tutorial uses `google/MediaPipe-Face-Detection` together with
+        // `FaceDetectionWrapper`, which owns model-specific preprocessing/postprocessing.
+        // That keeps us from guessing Melange's raw output tensor layout in app code.
+        let model = try makeMelangeModel(configuration: configuration)
+        let wrapper = FaceDetectionWrapper()
+        let inputs = wrapper.preprocess(image)
+        var outputs = try model.run(inputs: inputs)
+        let postprocessed = wrapper.postprocess(&outputs)
+
+        let faceRegions = Self.makeMelangeRegions(
+            from: postprocessed,
+            imageSize: image.size
+        )
+
+        return FaceDetectionReport(
+            regions: faceRegions,
+            elapsedMs: Self.elapsedMilliseconds(since: startedAt),
+            backend: "melange-face"
+        )
+    }
+
+    func makeMelangeModel(configuration: MelangeConfiguration) throws -> ZeticMLangeModel {
+        if let version = configuration.modelVersion, !version.isEmpty {
+            return try ZeticMLangeModel(
+                personalKey: configuration.personalKey,
+                name: configuration.modelName,
+                version: version
+            )
+        }
+
+        return try ZeticMLangeModel(
+            personalKey: configuration.personalKey,
+            name: configuration.modelName
+        )
+    }
+
+    static func makeMelangeRegions(
+        from postprocessed: Any,
+        imageSize: CGSize
+    ) -> [RedactionRegion] {
+        let imageBounds = CGRect(origin: .zero, size: imageSize)
+
+        return extractRects(from: postprocessed).compactMap { candidate in
+            let rect = candidate.rect.intersection(imageBounds)
+            guard !rect.isNull, rect.width > 0, rect.height > 0 else {
+                return nil
+            }
+
+            return RedactionRegion(
+                rect: rect.integral,
+                type: .face,
+                label: "FACE",
+                confidence: candidate.confidence,
+                source: "melange-face",
+                redactionStyle: .blur
+            )
+        }
+    }
+
+    static func extractRects(from value: Any) -> [(rect: CGRect, confidence: Float)] {
+        if let regions = value as? [CGRect] {
+            return regions.map { ($0, 1.0) }
+        }
+
+        if let dicts = value as? [[String: Any]] {
+            return dicts.compactMap(extractRect(from:))
+        }
+
+        let mirror = Mirror(reflecting: value)
+        if mirror.displayStyle == .collection {
+            return mirror.children.compactMap { child in
+                if let rect = child.value as? CGRect {
+                    return (rect, 1.0)
+                }
+
+                return extractRect(from: child.value)
+            }
+        }
+
+        return extractRect(from: value).map { [$0] } ?? []
+    }
+
+    static func extractRect(from value: Any) -> (rect: CGRect, confidence: Float)? {
+        if let rect = value as? CGRect {
+            return (rect, 1.0)
+        }
+
+        if let dict = value as? [String: Any] {
+            if let rect = dict["rect"] as? CGRect {
+                return (rect, dict["confidence"] as? Float ?? 1.0)
+            }
+
+            if
+                let x = number(from: dict["x"]),
+                let y = number(from: dict["y"]),
+                let width = number(from: dict["width"]),
+                let height = number(from: dict["height"])
+            {
+                let confidence = Float(number(from: dict["confidence"]) ?? 1.0)
+                return (CGRect(x: x, y: y, width: width, height: height), confidence)
+            }
+        }
+
+        let mirror = Mirror(reflecting: value)
+        var x: CGFloat?
+        var y: CGFloat?
+        var width: CGFloat?
+        var height: CGFloat?
+        var confidence = Float(1.0)
+
+        for child in mirror.children {
+            switch child.label {
+            case "rect":
+                if let rect = child.value as? CGRect {
+                    return (rect, confidence)
+                }
+            case "x", "originX", "left":
+                x = number(from: child.value)
+            case "y", "originY", "top":
+                y = number(from: child.value)
+            case "width", "w":
+                width = number(from: child.value)
+            case "height", "h":
+                height = number(from: child.value)
+            case "confidence", "score":
+                confidence = Float(number(from: child.value) ?? 1.0)
+            default:
+                continue
+            }
+        }
+
+        if let x, let y, let width, let height {
+            return (CGRect(x: x, y: y, width: width, height: height), confidence)
+        }
+
+        return nil
+    }
+
+    static func number(from value: Any?) -> CGFloat? {
+        switch value {
+        case let number as CGFloat:
+            return number
+        case let number as Double:
+            return CGFloat(number)
+        case let number as Float:
+            return CGFloat(number)
+        case let number as Int:
+            return CGFloat(number)
+        case let number as NSNumber:
+            return CGFloat(number.doubleValue)
+        default:
+            return nil
+        }
+    }
+}
+#endif

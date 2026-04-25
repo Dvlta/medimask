@@ -398,6 +398,9 @@
 				DEVELOPMENT_ASSET_PATHS = "\"medimask/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_MelangeFaceModelName = "google/MediaPipe-Face-Detection";
+				INFOPLIST_KEY_MelangeFaceModelVersion = "";
+				INFOPLIST_KEY_MelangePersonalKey = "";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MediMask uses the camera to capture healthcare-related photos for local PHI redaction.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "MediMask can save scrubbed photos back to your library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "MediMask imports photos so it can detect and redact sensitive health information locally.";
@@ -429,6 +432,9 @@
 				DEVELOPMENT_ASSET_PATHS = "\"medimask/Preview Content\"";
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_MelangeFaceModelName = "google/MediaPipe-Face-Detection";
+				INFOPLIST_KEY_MelangeFaceModelVersion = "";
+				INFOPLIST_KEY_MelangePersonalKey = "";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MediMask uses the camera to capture healthcare-related photos for local PHI redaction.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "MediMask can save scrubbed photos back to your library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "MediMask imports photos so it can detect and redact sensitive health information locally.";

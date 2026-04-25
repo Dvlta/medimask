@@ -8,33 +8,35 @@ final class ImageProcessingPipeline {
     private let imageRedactor = ImageRedactor()
 
     func process(image: UIImage) async throws -> DetectionResult {
-        let totalStart = Date()
+        let totalStartedAt = CFAbsoluteTimeGetCurrent()
         let normalizedImage = imageOrientationFixer.normalize(image: image)
 
-        let faceStart = Date()
-        let faceRegions = try await faceDetector.detectFaces(in: normalizedImage)
-        let faceMs = Date().timeIntervalSince(faceStart) * 1000
+        let faceReport = try await faceDetector.detectFacesReport(in: normalizedImage)
 
-        let ocrStart = Date()
+        let ocrStartedAt = CFAbsoluteTimeGetCurrent()
         let textObservations = try await ocrService.recognizeText(in: normalizedImage)
-        let ocrMs = Date().timeIntervalSince(ocrStart) * 1000
+        let ocrMs = Self.elapsedMilliseconds(since: ocrStartedAt)
 
-        let phiStart = Date()
+        let phiStartedAt = CFAbsoluteTimeGetCurrent()
         let phiRegions = phiDetector.detectPHI(in: textObservations)
-        let phiMs = Date().timeIntervalSince(phiStart) * 1000
+        let phiDetectionMs = Self.elapsedMilliseconds(since: phiStartedAt)
 
-        let regions = faceRegions + phiRegions
+        let regions = faceReport.regions + phiRegions
 
-        let redactStart = Date()
+        let redactionStartedAt = CFAbsoluteTimeGetCurrent()
         let scrubbedImage = imageRedactor.redact(image: normalizedImage, regions: regions)
-        let redactMs = Date().timeIntervalSince(redactStart) * 1000
+        let redactionMs = Self.elapsedMilliseconds(since: redactionStartedAt)
 
         let timings = ProcessingTimings(
-            faceDetectionMs: faceMs,
+            faceDetectionMs: faceReport.elapsedMs,
             ocrMs: ocrMs,
-            phiDetectionMs: phiMs,
-            redactionMs: redactMs,
-            totalMs: Date().timeIntervalSince(totalStart) * 1000
+            phiDetectionMs: phiDetectionMs,
+            redactionMs: redactionMs,
+            totalMs: Self.elapsedMilliseconds(since: totalStartedAt)
+        )
+
+        Logger.app.info(
+            "Pipeline face backend: \(faceReport.backend, privacy: .public); timings ms - face: \(timings.faceDetectionMs, privacy: .public), ocr: \(timings.ocrMs, privacy: .public), phi: \(timings.phiDetectionMs, privacy: .public), redaction: \(timings.redactionMs, privacy: .public), total: \(timings.totalMs, privacy: .public)"
         )
 
         return DetectionResult(
@@ -43,5 +45,9 @@ final class ImageProcessingPipeline {
             regions: regions,
             timings: timings
         )
+    }
+
+    private static func elapsedMilliseconds(since startedAt: CFAbsoluteTime) -> Double {
+        (CFAbsoluteTimeGetCurrent() - startedAt) * 1000
     }
 }

@@ -7,6 +7,7 @@ xcuserdata/
 
 # Build artifacts
 DerivedData/
+.derivedData/
 build/
 
 # Swift Package Manager
@@ -18,3 +19,5 @@ fastlane/report.xml
 fastlane/Preview.html
 fastlane/screenshots
 fastlane/test_output
+
+melange-examples/

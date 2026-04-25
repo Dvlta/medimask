@@ -1,8 +1,9 @@
+import CoreImage
 import UIKit
 import CoreImage
 
 final class ImageRedactor {
-    private let ciContext = CIContext()
+    private let ciContext = CIContext(options: nil)
 
     func redact(image: UIImage, regions: [RedactionRegion]) -> UIImage {
         let sanitizedRegions = regions.compactMap { sanitize(region: $0, imageSize: image.size) }
@@ -10,6 +11,18 @@ final class ImageRedactor {
 
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = image.scale
+        let imageRect = CGRect(origin: .zero, size: image.size)
+
+        let blurredImage = filteredImage(
+            from: image,
+            filterName: "CIGaussianBlur",
+            parameters: [kCIInputRadiusKey: 18]
+        )
+        let pixelatedImage = filteredImage(
+            from: image,
+            filterName: "CIPixellate",
+            parameters: [kCIInputScaleKey: 24]
+        )
 
         let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
         return renderer.image { context in

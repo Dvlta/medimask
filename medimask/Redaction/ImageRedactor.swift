@@ -1,6 +1,5 @@
 import CoreImage
 import UIKit
-import CoreImage
 
 final class ImageRedactor {
     private let ciContext = CIContext(options: nil)
@@ -11,18 +10,6 @@ final class ImageRedactor {
 
         let format = UIGraphicsImageRendererFormat.default()
         format.scale = image.scale
-        let imageRect = CGRect(origin: .zero, size: image.size)
-
-        let blurredImage = filteredImage(
-            from: image,
-            filterName: "CIGaussianBlur",
-            parameters: [kCIInputRadiusKey: 18]
-        )
-        let pixelatedImage = filteredImage(
-            from: image,
-            filterName: "CIPixellate",
-            parameters: [kCIInputScaleKey: 24]
-        )
 
         let renderer = UIGraphicsImageRenderer(size: image.size, format: format)
         return renderer.image { context in
@@ -34,20 +21,18 @@ final class ImageRedactor {
                     UIColor.black.setFill()
                     context.fill(region.rect)
                 case .blur, .pixelate:
-                    // Preserve a strong fallback look over filtered regions.
-                    UIColor.black.withAlphaComponent(0.20).setFill()
-                    context.fill(region.rect)
+                    continue
                 }
             }
         }
     }
 
     private func applyEffects(image: UIImage, regions: [RedactionRegion]) -> UIImage {
-        guard let cgImage = image.cgImage else {
+        guard let sourceCGImage = sourceCGImage(for: image) else {
             return image
         }
 
-        let sourceImage = CIImage(cgImage: cgImage)
+        let sourceImage = CIImage(cgImage: sourceCGImage)
         var outputImage = sourceImage
 
         for region in regions {
@@ -127,5 +112,20 @@ final class ImageRedactor {
             source: region.source,
             redactionStyle: region.redactionStyle
         )
+    }
+
+    private func sourceCGImage(for image: UIImage) -> CGImage? {
+        if let cgImage = image.cgImage {
+            return cgImage
+        }
+
+        if let ciImage = image.ciImage {
+            return ciContext.createCGImage(ciImage, from: ciImage.extent)
+        }
+
+        let renderedImage = UIGraphicsImageRenderer(size: image.size).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }
+        return renderedImage.cgImage
     }
 }

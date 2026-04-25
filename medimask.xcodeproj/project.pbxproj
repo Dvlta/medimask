@@ -396,6 +396,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"medimask/Preview Content\"";
+				DEVELOPMENT_TEAM = 2Z76X5M5HN;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "MediMask uses the camera to capture healthcare-related photos for local PHI redaction.";
@@ -427,6 +428,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"medimask/Preview Content\"";
+				DEVELOPMENT_TEAM = 2Z76X5M5HN;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_NSCameraUsageDescription = "MediMask uses the camera to capture healthcare-related photos for local PHI redaction.";

@@ -1,3 +1,5 @@
+// ResultView: Displays redaction results and sharing options
+
 import SwiftUI
 import UIKit
 

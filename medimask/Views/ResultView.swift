@@ -1,3 +1,5 @@
+// ResultView: Displays redaction results and sharing options
+
 import SwiftUI
 import UIKit
 
@@ -10,19 +12,36 @@ private enum RegionSelectionAction: String, CaseIterable, Identifiable {
 
 struct ResultView: View {
     let result: DetectionResult
+    @State private var selectedTab: Tab = .scrubbed
     @State private var isShowingShareSheet = false
     @State private var redactionMode: RedactionIntensityMode = .balanced
     @State private var labelSelections: [String: RegionSelectionAction] = [:]
     @State private var customizedImage: UIImage?
     private let imageRedactor = ImageRedactor()
 
+    private enum Tab: String, CaseIterable, Identifiable {
+        case original = "Original"
+        case scrubbed = "Scrubbed"
+
+        var id: String { rawValue }
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    headerCard
+                    Text("Safe-to-share copy created")
+                    Text("Safe-to-Share Output")
+                        .font(.title3.bold())
 
-                    Image(uiImage: customizedImage ?? result.scrubbedImage)
+                    Picker("Preview", selection: $selectedTab) {
+                        ForEach(Tab.allCases) { tab in
+                            Text(tab.rawValue).tag(tab)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+
+                    Image(uiImage: previewImage)
                         .resizable()
                         .scaledToFit()
                         .frame(maxWidth: .infinity)
@@ -79,9 +98,13 @@ struct ResultView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Detection Summary")
                             .font(.headline)
-                        ForEach(summaryLines, id: \.self) { line in
-                            Text(line)
-                                .foregroundStyle(.secondary)
+                        if result.regions.isEmpty {
+                            Text("No sensitive regions found.")
+                        } else {
+                            ForEach(summaryLines, id: \.self) { line in
+                                Text(line)
+                                    .foregroundStyle(.secondary)
+                            }
                         }
                     }
                     .padding(14)
@@ -102,15 +125,16 @@ struct ResultView: View {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Processing Time")
                             .font(.headline)
-                        Group {
-                            Text("Face detection: \(formattedMs(result.timings.faceDetectionMs))")
-                            Text("OCR: \(formattedMs(result.timings.ocrMs))")
-                            Text("PHI rules: \(formattedMs(result.timings.phiDetectionMs))")
-                            Text("Redaction: \(formattedMs(result.timings.redactionMs))")
-                            Text("Total: \(formattedMs(result.timings.totalMs))")
-                                .fontWeight(.semibold)
-                        }
-                        .foregroundStyle(.secondary)
+                        Text("Face detection: \(timingString(result.timings.faceDetectionMs))")
+                            .foregroundStyle(.secondary)
+                        Text("OCR: \(timingString(result.timings.ocrMs))")
+                            .foregroundStyle(.secondary)
+                        Text("PHI rules: \(timingString(result.timings.phiDetectionMs))")
+                            .foregroundStyle(.secondary)
+                        Text("Redaction: \(timingString(result.timings.redactionMs))")
+                            .foregroundStyle(.secondary)
+                        Text("Total: \(timingString(result.timings.totalMs))")
+                            .foregroundStyle(.secondary)
                     }
                     .padding(14)
                     .background(cardBackground)
@@ -156,7 +180,6 @@ struct ResultView: View {
         if sortedLabels.isEmpty {
             return ["No detections found."]
         }
-
         var lines = sortedLabels.map { label in
             "\(label): \(grouped[label]?.count ?? 0)"
         }

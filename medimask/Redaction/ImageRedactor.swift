@@ -1,5 +1,5 @@
-import UIKit
 import CoreImage
+import UIKit
 
 enum RedactionIntensityMode: String, CaseIterable, Identifiable {
     case balanced = "Balanced"
@@ -9,7 +9,7 @@ enum RedactionIntensityMode: String, CaseIterable, Identifiable {
 }
 
 final class ImageRedactor {
-    private let ciContext = CIContext()
+    private let ciContext = CIContext(options: nil)
 
     func redact(
         image: UIImage,
@@ -48,7 +48,7 @@ final class ImageRedactor {
             return image
         }
 
-        let sourceImage = CIImage(cgImage: cgImage)
+        let sourceImage = CIImage(cgImage: sourceCGImage)
         var outputImage = sourceImage
 
         for region in regions {

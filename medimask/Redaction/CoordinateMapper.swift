@@ -2,6 +2,9 @@ import CoreGraphics
 
 enum CoordinateMapper {
     static func mapImageRect(_ rect: CGRect, imageSize: CGSize, containerSize: CGSize) -> CGRect {
+        // `rect` must already be in normalized image coordinate space with a top-left origin.
+        // Detector services are responsible for converting any model-specific output
+        // (for example Vision's normalized bottom-left boxes) before it reaches the UI.
         guard imageSize.width > 0, imageSize.height > 0 else {
             return .zero
         }

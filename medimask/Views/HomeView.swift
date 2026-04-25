@@ -5,11 +5,15 @@ import UIKit
 struct HomeView: View {
     @State private var selectedImage: UIImage?
     @State private var detectionResult: DetectionResult?
+    @State private var previewRegions: [RedactionRegion] = []
     @State private var isShowingResult = false
     @State private var isScanning = false
+    @State private var isPreviewScanning = false
     @State private var errorMessage: String?
 
     private let pipeline = ImageProcessingPipeline()
+    private let ocrService = VisionOCRService()
+    private let phiDetector = PHIDetector()
 
     var body: some View {
         NavigationStack {
@@ -23,7 +27,7 @@ struct HomeView: View {
                 .padding(20)
             }
             .navigationTitle("MediMask")
-            .background(Color(.systemGroupedBackground))
+            .background(Color(red: 0.97, green: 0.98, blue: 1.0).ignoresSafeArea())
             .sheet(isPresented: $isShowingResult) {
                 if let result = detectionResult {
                     ResultView(result: result)
@@ -36,6 +40,9 @@ struct HomeView: View {
             } message: {
                 Text(errorMessage ?? "Unknown error")
             }
+            .task(id: selectedImage) {
+                await buildPreviewRegions()
+            }
         }
     }
 
@@ -44,17 +51,22 @@ struct HomeView: View {
             Text("Scan healthcare photos locally before you share them.")
                 .font(.system(.title2, design: .rounded))
                 .fontWeight(.bold)
+                .foregroundStyle(Color.primary)
             Text("Faces, patient identifiers, and obvious PHI are detected on-device and redacted into a safe copy.")
                 .foregroundStyle(.secondary)
             Label("Designed to work offline", systemImage: "airplane")
                 .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.blue)
+                .foregroundStyle(Color(red: 0.14, green: 0.38, blue: 0.75))
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                )
         )
     }
 
@@ -63,7 +75,8 @@ struct HomeView: View {
             if let selectedImage {
                 ReviewView(
                     image: selectedImage,
-                    regions: detectionResult?.regions ?? []
+                    regions: displayedRegions,
+                    title: previewTitle
                 )
             } else {
                 ContentUnavailableView(
@@ -91,12 +104,18 @@ struct HomeView: View {
 
             if isScanning {
                 ProcessingStatusView(message: "Running face detection, OCR, and PHI rules on-device...")
+            } else if isPreviewScanning {
+                ProcessingStatusView(message: "Checking image for compromisable details...")
             }
         }
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color(.secondarySystemBackground))
+                .fill(Color.white)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                )
         )
     }
 
@@ -106,6 +125,7 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Text("Latest Scan")
                     .font(.headline)
+                        .foregroundStyle(Color.primary)
                 ForEach(detectionSummaryLines(for: detectionResult), id: \.self) { line in
                     Text(line)
                         .foregroundStyle(.secondary)
@@ -119,9 +139,27 @@ struct HomeView: View {
             .padding(20)
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(Color(.secondarySystemBackground))
+                    .fill(Color.white)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .stroke(Color.black.opacity(0.06), lineWidth: 1)
+                    )
             )
         }
+    }
+
+    private var displayedRegions: [RedactionRegion] {
+        detectionResult?.regions ?? previewRegions
+    }
+
+    private var previewTitle: String {
+        if detectionResult != nil {
+            return "Review Detected Regions"
+        }
+        if isPreviewScanning {
+            return "Pre-Scan Privacy Hints"
+        }
+        return previewRegions.isEmpty ? "Review" : "Pre-Scan Privacy Hints"
     }
 
     private var errorBinding: Binding<Bool> {
@@ -161,5 +199,22 @@ struct HomeView: View {
         }
 
         isScanning = false
+    }
+
+    @MainActor
+    private func buildPreviewRegions() async {
+        detectionResult = nil
+        previewRegions = []
+
+        guard let selectedImage else { return }
+
+        isPreviewScanning = true
+        do {
+            let textObservations = try await ocrService.recognizeText(in: selectedImage)
+            previewRegions = phiDetector.detectPHI(in: textObservations)
+        } catch {
+            Logger.app.error("Preview detection failed: \(error.localizedDescription)")
+        }
+        isPreviewScanning = false
     }
 }

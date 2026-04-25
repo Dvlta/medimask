@@ -85,7 +85,7 @@ struct HomeView: View {
             if let selectedImage {
                 let reviewImage = detectionResult?.originalImage ?? selectedImage
                 ReviewView(
-                    image: selectedImage,
+                    image: reviewImage,
                     regions: displayedRegions,
                     title: previewTitle
                 )

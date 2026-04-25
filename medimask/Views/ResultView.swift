@@ -15,7 +15,7 @@ struct ResultView: View {
     @State private var selectedTab: Tab = .scrubbed
     @State private var isShowingShareSheet = false
     @State private var redactionMode: RedactionIntensityMode = .balanced
-    @State private var labelSelections: [String: RegionSelectionAction] = [:]
+    @State private var regionSelections: [UUID: RegionSelectionAction] = [:]
     @State private var customizedImage: UIImage?
     private let imageRedactor = ImageRedactor()
 
@@ -68,8 +68,8 @@ struct ResultView: View {
                             .buttonStyle(.bordered)
                         }
 
-                        ForEach(selectableLabels, id: \.self) { label in
-                            keepBlurButton(for: label)
+                        ForEach(selectableRegions) { region in
+                            keepBlurButton(for: region)
                         }
                     }
                     .padding(14)
@@ -148,7 +148,16 @@ struct ResultView: View {
             }
             .onAppear(perform: configureDefaults)
             .onChange(of: redactionMode) { _ in regenerateImage() }
-            .onChange(of: labelSelections) { _ in regenerateImage() }
+            .onChange(of: regionSelections) { _ in regenerateImage() }
+        }
+    }
+
+    private var previewImage: UIImage {
+        switch selectedTab {
+        case .original:
+            return result.originalImage
+        case .scrubbed:
+            return customizedImage ?? result.scrubbedImage
         }
     }
 
@@ -234,35 +243,35 @@ struct ResultView: View {
         return lines
     }
 
-    private func formattedMs(_ value: Double) -> String {
+    private func timingString(_ value: Double) -> String {
         "\(Int(value.rounded())) ms"
     }
 
-    private var selectableLabels: [String] {
-        Array(Set(result.regions.map(\.label))).sorted()
+    private var selectableRegions: [RedactionRegion] {
+        result.regions.sorted {
+            if $0.label == $1.label {
+                if $0.rect.minY == $1.rect.minY {
+                    return $0.rect.minX < $1.rect.minX
+                }
+                return $0.rect.minY < $1.rect.minY
+            }
+            return $0.label < $1.label
+        }
     }
 
     private var effectiveRegions: [RedactionRegion] {
         result.regions.compactMap { region in
-            let action = labelSelections[region.label] ?? .blur
+            let action = regionSelections[region.id] ?? .blur
             guard action == .blur else { return nil }
-            return RedactionRegion(
-                id: region.id,
-                rect: region.rect,
-                type: region.type,
-                label: region.label,
-                confidence: region.confidence,
-                source: region.source,
-                redactionStyle: .blur
-            )
+            return region
         }
     }
 
     private func configureDefaults() {
-        guard labelSelections.isEmpty else { return }
-        var defaults: [String: RegionSelectionAction] = [:]
-        selectableLabels.forEach { defaults[$0] = .blur }
-        labelSelections = defaults
+        guard regionSelections.isEmpty else { return }
+        var defaults: [UUID: RegionSelectionAction] = [:]
+        selectableRegions.forEach { defaults[$0.id] = .blur }
+        regionSelections = defaults
         regenerateImage()
     }
 
@@ -289,16 +298,21 @@ struct ResultView: View {
     }
 
     @ViewBuilder
-    private func keepBlurButton(for label: String) -> some View {
-        let action = labelSelections[label] ?? .blur
+    private func keepBlurButton(for region: RedactionRegion) -> some View {
+        let action = regionSelections[region.id] ?? .blur
         HStack(spacing: 10) {
-            Text(label)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
-                .minimumScaleFactor(0.8)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(region.label)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.8)
+                Text(regionSubtitle(for: region))
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
             Spacer()
             Button(action.rawValue) {
-                labelSelections[label] = action == .blur ? .keep : .blur
+                regionSelections[region.id] = action == .blur ? .keep : .blur
             }
             .font(.caption.weight(.bold))
             .padding(.horizontal, 10)
@@ -310,18 +324,12 @@ struct ResultView: View {
     }
 
     private func setAllSelections(_ action: RegionSelectionAction) {
-        var updated: [String: RegionSelectionAction] = [:]
-        selectableLabels.forEach { updated[$0] = action }
-        labelSelections = updated
-    }
-}
-
-private struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
+        var updated: [UUID: RegionSelectionAction] = [:]
+        selectableRegions.forEach { updated[$0.id] = action }
+        regionSelections = updated
     }
 
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+    private func regionSubtitle(for region: RedactionRegion) -> String {
+        "x:\(Int(region.rect.minX.rounded())) y:\(Int(region.rect.minY.rounded()))"
+    }
 }

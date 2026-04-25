@@ -44,7 +44,7 @@ final class ImageRedactor {
         regions: [RedactionRegion],
         intensityMode: RedactionIntensityMode
     ) -> UIImage {
-        guard let cgImage = image.cgImage else {
+        guard let sourceCGImage = sourceCGImage(for: image) else {
             return image
         }
 
@@ -164,7 +164,6 @@ final class ImageRedactor {
 
         let pad = sanitizePadding(for: region)
         let padded = clamped.insetBy(dx: -pad.horizontal, dy: -pad.vertical).intersection(imageBounds)
-        let effectiveStyle: RedactionStyle = region.redactionStyle == .blackBox ? .blur : region.redactionStyle
 
         return RedactionRegion(
             id: region.id,
@@ -173,7 +172,7 @@ final class ImageRedactor {
             label: region.label,
             confidence: region.confidence,
             source: region.source,
-            redactionStyle: effectiveStyle
+            redactionStyle: region.redactionStyle
         )
     }
 
@@ -220,5 +219,20 @@ final class ImageRedactor {
             return (10, 10)
         }
         return (6, 6)
+    }
+
+    private func sourceCGImage(for image: UIImage) -> CGImage? {
+        if let cgImage = image.cgImage {
+            return cgImage
+        }
+
+        if let ciImage = image.ciImage {
+            return ciContext.createCGImage(ciImage, from: ciImage.extent)
+        }
+
+        let renderedImage = UIGraphicsImageRenderer(size: image.size).image { _ in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }
+        return renderedImage.cgImage
     }
 }

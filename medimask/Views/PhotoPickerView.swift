@@ -28,6 +28,7 @@ struct PhotoPickerView: View {
 
                 Button(role: .destructive) {
                     self.selectedImage = nil
+                    selectedItem = nil
                 } label: {
                     Label("Remove Selected Photo", systemImage: "trash")
                         .frame(maxWidth: .infinity)
@@ -47,10 +48,13 @@ struct PhotoPickerView: View {
                 if let data = try await selectedItem.loadTransferable(type: Data.self),
                    let image = UIImage(data: data) {
                     selectedImage = image
+                    self.selectedItem = nil
                 } else {
+                    self.selectedItem = nil
                     onError("The selected image could not be loaded. Please choose another photo.")
                 }
             } catch {
+                self.selectedItem = nil
                 Logger.app.error("Failed to load selected photo: \(error.localizedDescription)")
                 onError("Could not import the selected photo. Please try again.")
             }

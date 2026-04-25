@@ -12,7 +12,6 @@ struct ResultView: View {
 
         var id: String { rawValue }
     }
-    @State private var isShowingShareSheet = false
 
     var body: some View {
         NavigationStack {
@@ -38,6 +37,7 @@ struct ResultView: View {
                     Label("Processed on-device. No upload required.", systemImage: "lock.shield")
                         .font(.subheadline.weight(.semibold))
                         .foregroundStyle(.green)
+
                     HStack(spacing: 12) {
                         Button {
                             isShowingShareSheet = true
@@ -61,12 +61,9 @@ struct ResultView: View {
                             .font(.headline)
                         if result.regions.isEmpty {
                             Text("No sensitive regions found.")
-                        ForEach(summaryLines, id: \.self) { line in
-                            Text(line)
-                                .foregroundStyle(.secondary)
                         } else {
-                            ForEach(result.regions) { region in
-                                Text("\(region.label) • \(region.source)")
+                            ForEach(summaryLines, id: \.self) { line in
+                                Text(line)
                                     .foregroundStyle(.secondary)
                             }
                         }
@@ -86,23 +83,6 @@ struct ResultView: View {
                         Text("Total: \(timingString(result.timings.totalMs))")
                             .foregroundStyle(.secondary)
                     }
-
-                    Button {
-                        isShowingShareSheet = true
-                    } label: {
-                        Label("Share Scrubbed Image", systemImage: "square.and.arrow.up")
-                            .frame(maxWidth: .infinity)
-                        Group {
-                            Text("Face detection: \(formattedMs(result.timings.faceDetectionMs))")
-                            Text("OCR: \(formattedMs(result.timings.ocrMs))")
-                            Text("PHI rules: \(formattedMs(result.timings.phiDetectionMs))")
-                            Text("Redaction: \(formattedMs(result.timings.redactionMs))")
-                            Text("Total: \(formattedMs(result.timings.totalMs))")
-                                .fontWeight(.semibold)
-                        }
-                        .foregroundStyle(.secondary)
-                    }
-                    .buttonStyle(.borderedProminent)
                 }
                 .padding(20)
             }
@@ -125,31 +105,17 @@ struct ResultView: View {
     private func timingString(_ value: Double) -> String {
         "\(Int(value.rounded())) ms"
     }
+
     private var summaryLines: [String] {
         let grouped = Dictionary(grouping: result.regions, by: \.label)
         let sortedLabels = grouped.keys.sorted()
         if sortedLabels.isEmpty {
             return ["No detections found."]
         }
-
         var lines = sortedLabels.map { label in
             "\(label): \(grouped[label]?.count ?? 0)"
         }
         lines.append("Total regions: \(result.regions.count)")
         return lines
     }
-
-    private func formattedMs(_ value: Double) -> String {
-        "\(Int(value.rounded())) ms"
-    }
-}
-
-private struct ShareSheet: UIViewControllerRepresentable {
-    let items: [Any]
-
-    func makeUIViewController(context: Context) -> UIActivityViewController {
-        UIActivityViewController(activityItems: items, applicationActivities: nil)
-    }
-
-    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
 }

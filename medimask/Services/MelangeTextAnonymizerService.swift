@@ -183,11 +183,11 @@ final class MelangeTextAnonymizerService {
 
             let offset = tokenIndex * classCount
             let scores = floatValues[offset..<(offset + classCount)]
-            guard let best = scores.enumerated().max(by: { $0.element < $1.element }) else {
+            guard let classification = tokenClassification(from: Array(scores)) else {
                 continue
             }
 
-            let label = idToLabel[best.offset] ?? "O"
+            let label = idToLabel[classification.index] ?? "O"
             if label == "O" {
                 if let activeEntity {
                     entities.append(activeEntity.finalize())
@@ -204,12 +204,14 @@ final class MelangeTextAnonymizerService {
                 activeEntity = ActiveEntity(
                     label: entityLabel,
                     range: tokenRange,
-                    accumulatedScore: best.element,
+                    accumulatedProbability: classification.probability,
+                    accumulatedMargin: classification.margin,
                     tokenCount: 1
                 )
             } else if var current = activeEntity {
                 current.range = min(current.range.lowerBound, tokenRange.lowerBound)..<max(current.range.upperBound, tokenRange.upperBound)
-                current.accumulatedScore += best.element
+                current.accumulatedProbability += classification.probability
+                current.accumulatedMargin += classification.margin
                 current.tokenCount += 1
                 activeEntity = current
             }
@@ -240,11 +242,17 @@ final class MelangeTextAnonymizerService {
 
             let boundedRect = mergedRect.insetBy(dx: -8, dy: -6)
             let averageOCRConfidence = matchingObservations.map(\.observation.confidence).reduce(0, +) / Float(matchingObservations.count)
+            let entityText = text(in: entity.range, from: chunk.text)
+            let matchedText = matchingObservations.map(\.observation.text).joined(separator: " ")
+            let label = refinedDisplayLabel(
+                for: entity,
+                text: entityText.isEmpty ? matchedText : entityText + " " + matchedText
+            )
 
             return RedactionRegion(
                 rect: boundedRect,
                 type: .phiText,
-                label: displayLabel(for: entity.label),
+                label: label,
                 confidence: max(entity.confidence, averageOCRConfidence),
                 source: "melange-text-anonymizer",
                 redactionStyle: .blur
@@ -334,9 +342,9 @@ final class MelangeTextAnonymizerService {
     private func deduplicatedRegions(_ regions: [RedactionRegion]) -> [RedactionRegion] {
         var deduplicated: [RedactionRegion] = []
 
-        for region in regions.sorted(by: { $0.rect.width * $0.rect.height > $1.rect.width * $1.rect.height }) {
+        for region in regions.sorted(by: regionSortPrecedence) {
             let overlapsExisting = deduplicated.contains { existing in
-                existing.label == region.label && overlapRatio(lhs: existing.rect, rhs: region.rect) > 0.5
+                overlapRatio(lhs: existing.rect, rhs: region.rect) > 0.5
             }
 
             if !overlapsExisting {
@@ -345,6 +353,33 @@ final class MelangeTextAnonymizerService {
         }
 
         return deduplicated
+    }
+
+    private func regionSortPrecedence(_ lhs: RedactionRegion, _ rhs: RedactionRegion) -> Bool {
+        let lhsPriority = labelPriority(lhs.label)
+        let rhsPriority = labelPriority(rhs.label)
+        if lhsPriority != rhsPriority {
+            return lhsPriority > rhsPriority
+        }
+
+        let lhsArea = lhs.rect.width * lhs.rect.height
+        let rhsArea = rhs.rect.width * rhs.rect.height
+        if lhsArea != rhsArea {
+            return lhsArea > rhsArea
+        }
+
+        return lhs.confidence > rhs.confidence
+    }
+
+    private func labelPriority(_ label: String) -> Int {
+        switch label {
+        case "SENSITIVE TEXT":
+            return 0
+        case "LOCATION":
+            return 1
+        default:
+            return 2
+        }
     }
 
     private func normalizedEntityLabel(for label: String) -> String {
@@ -375,6 +410,116 @@ final class MelangeTextAnonymizerService {
         default:
             return entityLabel.replacingOccurrences(of: "_", with: " ").uppercased()
         }
+    }
+
+    private func refinedDisplayLabel(for entity: DetectedEntity, text: String) -> String {
+        if matches(text, pattern: #"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#) {
+            return "EMAIL ADDRESS"
+        }
+
+        if matches(text, pattern: #"\b(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"#) {
+            return "PHONE NUMBER"
+        }
+
+        if matches(text, pattern: #"\b(DOB|Date of Birth|Birth Date)\b[:\s]*\d{1,2}[/-]\d{1,2}[/-]\d{2,4}"#) {
+            return "DATE OF BIRTH"
+        }
+
+        if matches(text, pattern: #"\b(MRN|Medical Record|Medical Record Number)\b[:\s#-]*[A-Z0-9-]{4,}\b"#) {
+            return "MEDICAL RECORD NUMBER"
+        }
+
+        if matches(text, pattern: #"\b(Patient ID|Patient #|Patient Number)\b[:\s#-]*[A-Z0-9-]{4,}\b"#) {
+            return "PATIENT ID"
+        }
+
+        if matches(text, pattern: #"\b(Insurance ID|Policy #|Policy Number|Member ID)\b[:\s#-]*[A-Z0-9-]{4,}\b"#) {
+            return "INSURANCE ID"
+        }
+
+        if matches(text, pattern: #"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#) {
+            return "DATE"
+        }
+
+        if looksLikeAddress(text) {
+            return "ADDRESS"
+        }
+
+        if entity.isUncertain {
+            return "SENSITIVE TEXT"
+        }
+
+        if entity.label == "LOCATION", !looksLikeLocation(text) {
+            return "SENSITIVE TEXT"
+        }
+
+        return displayLabel(for: entity.label)
+    }
+
+    private func tokenClassification(from scores: [Float32]) -> TokenClassification? {
+        guard let best = scores.enumerated().max(by: { $0.element < $1.element }) else {
+            return nil
+        }
+
+        let maxScore = best.element
+        let expScores = scores.map { Foundation.exp(Double($0 - maxScore)) }
+        let total = expScores.reduce(0, +)
+        guard total > 0 else {
+            return TokenClassification(index: best.offset, probability: 0, margin: 0)
+        }
+
+        let probabilities = expScores.map { Float32($0 / total) }
+        let bestProbability = probabilities[best.offset]
+        let secondBestProbability = probabilities
+            .enumerated()
+            .filter { $0.offset != best.offset }
+            .map(\.element)
+            .max() ?? 0
+
+        return TokenClassification(
+            index: best.offset,
+            probability: bestProbability,
+            margin: bestProbability - secondBestProbability
+        )
+    }
+
+    private func text(in range: Range<Int>, from text: String) -> String {
+        guard range.lowerBound >= 0,
+              range.upperBound <= text.count,
+              range.lowerBound < range.upperBound,
+              let start = text.index(text.startIndex, offsetBy: range.lowerBound, limitedBy: text.endIndex),
+              let end = text.index(text.startIndex, offsetBy: range.upperBound, limitedBy: text.endIndex),
+              start <= end else {
+            return ""
+        }
+
+        return String(text[start..<end])
+    }
+
+    private func matches(_ text: String, pattern: String) -> Bool {
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        return (try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]))
+            .flatMap { regex in
+                regex.firstMatch(in: text, options: [], range: range)
+            } != nil
+    }
+
+    private func looksLikeAddress(_ text: String) -> Bool {
+        matches(
+            text,
+            pattern: #"\b\d{1,6}\s+[A-Z0-9.'-]+(?:\s+[A-Z0-9.'-]+){0,4}\s+(Street|St|Avenue|Ave|Road|Rd|Boulevard|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Way|Circle|Cir|Place|Pl|Suite|Ste|Unit|Apt)\b"#
+        )
+    }
+
+    private func looksLikeLocation(_ text: String) -> Bool {
+        let lowercased = text.lowercased()
+        let locationCues = [
+            "street", " st", "avenue", " ave", "road", " rd", "boulevard", "blvd",
+            "drive", " dr", "lane", " ln", "suite", "unit", "apt", "city", "state",
+            "zip", "hospital", "clinic", "center", "medical", "department", "room"
+        ]
+
+        return looksLikeAddress(text) || locationCues.contains { lowercased.contains($0) }
     }
 
     private func rangesOverlap(lhs: Range<Int>, rhs: Range<Int>) -> Bool {
@@ -427,16 +572,31 @@ private struct ChunkObservation {
     let characterRange: Range<Int>
 }
 
+private struct TokenClassification {
+    let index: Int
+    let probability: Float32
+    let margin: Float32
+}
+
 private struct ActiveEntity {
     let label: String
     var range: Range<Int>
-    var accumulatedScore: Float32
+    var accumulatedProbability: Float32
+    var accumulatedMargin: Float32
     var tokenCount: Int
 
     func finalize() -> DetectedEntity {
-        let averageScore = accumulatedScore / Float32(max(tokenCount, 1))
-        let confidence = Float(max(0.45, min(0.99, (averageScore + 4) / 8)))
-        return DetectedEntity(label: label, range: range, confidence: confidence)
+        let divisor = Float32(max(tokenCount, 1))
+        let averageProbability = accumulatedProbability / divisor
+        let averageMargin = accumulatedMargin / divisor
+        let confidence = Float(max(0.45, min(0.99, averageProbability)))
+        let isUncertain = averageProbability < 0.60 || averageMargin < 0.15
+        return DetectedEntity(
+            label: label,
+            range: range,
+            confidence: confidence,
+            isUncertain: isUncertain
+        )
     }
 }
 
@@ -444,4 +604,5 @@ private struct DetectedEntity {
     let label: String
     let range: Range<Int>
     let confidence: Float
+    let isUncertain: Bool
 }

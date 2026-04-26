@@ -21,3 +21,5 @@ fastlane/screenshots
 fastlane/test_output
 
 melange-examples/
+
+connor-version/

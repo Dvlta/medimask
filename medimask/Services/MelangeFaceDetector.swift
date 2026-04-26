@@ -35,7 +35,7 @@ final class MelangeFaceDetector {
             Logger.app.error("Melange face detection failed; falling back to Vision. Error: \(error.localizedDescription, privacy: .public)")
         }
 
-        let faceRegions = try detectWithVision(in: image)
+        let faceRegions = Self.bystanderFaces(from: try detectWithVision(in: image))
         let elapsedMs = Self.elapsedMilliseconds(since: startedAt)
 
         Logger.app.info("Face detection used fallback backend: apple-vision-face")
@@ -69,11 +69,13 @@ final class MelangeFaceDetector {
 
         let inputTensor = try makeMediaPipeInputTensor(from: image)
         let outputs = try model.run(inputs: [inputTensor])
-        let faceRegions = try decodeMediaPipeFaces(from: outputs, imageSize: image.size)
+        let faceRegions = Self.bystanderFaces(
+            from: try decodeMediaPipeFaces(from: outputs, imageSize: image.size)
+        )
         let elapsedMs = Self.elapsedMilliseconds(since: startedAt)
 
         Logger.app.info(
-            "Face detection used backend: melange-mediapipe-face; faces: \(faceRegions.count, privacy: .public)"
+            "Face detection used backend: melange-mediapipe-face; bystander faces: \(faceRegions.count, privacy: .public)"
         )
 
         return FaceDetectionReport(
@@ -147,6 +149,23 @@ final class MelangeFaceDetector {
 
     private static func elapsedMilliseconds(since startedAt: CFAbsoluteTime) -> Double {
         (CFAbsoluteTimeGetCurrent() - startedAt) * 1000
+    }
+
+    private static func bystanderFaces(from faces: [RedactionRegion]) -> [RedactionRegion] {
+        guard faces.count > 1,
+              let primaryFace = faces.max(by: { faceArea($0) < faceArea($1) }) else {
+            return []
+        }
+
+        Logger.app.info(
+            "Preserving primary face with area \(faceArea(primaryFace), privacy: .public); blurring \(faces.count - 1, privacy: .public) bystander faces."
+        )
+
+        return faces.filter { $0.id != primaryFace.id }
+    }
+
+    private static func faceArea(_ face: RedactionRegion) -> Double {
+        Double(face.rect.width * face.rect.height)
     }
 
     #if canImport(ZeticMLange)

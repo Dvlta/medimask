@@ -13,6 +13,7 @@ struct FaceDetectionReport {
 
 final class MelangeFaceDetector {
     private let mediaPipeInputSize = 128
+    private let faceLandmarkInputSize = 192
     private let mediaPipeScoreThreshold: Float = 0.5
     private let mediaPipeIouThreshold: Float = 0.3
 
@@ -28,7 +29,8 @@ final class MelangeFaceDetector {
         }
 
         do {
-            let faceRegions = Self.bystanderFaces(from: try detectWithVision(in: image))
+            let detectedFaces = try detectWithVision(in: image)
+            let faceRegions = await bystanderFacesWithLandmarkFallback(from: detectedFaces, in: image)
             let elapsedMs = Self.elapsedMilliseconds(since: startedAt)
 
             Logger.app.info("Face detection used default backend: melange-mediapipe-face")
@@ -93,6 +95,29 @@ final class MelangeFaceDetector {
         Logger.app.info("Melange face detection configured but ZeticMLange is unavailable in this build. Falling back to Vision.")
         return nil
         #endif
+    }
+
+    private func bystanderFacesWithLandmarkFallback(
+        from faces: [RedactionRegion],
+        in image: UIImage
+    ) async -> [RedactionRegion] {
+        guard faces.count > 1 else { return [] }
+
+        #if canImport(ZeticMLange)
+        do {
+            let scoredFaces = try await subjectScores(from: faces, in: image)
+            if let primaryFace = scoredFaces.max(by: { $0.score < $1.score }) {
+                Logger.app.info(
+                    "Preserving primary face with hybrid subject score \(primaryFace.score, privacy: .public); blurring \(faces.count - 1, privacy: .public) bystander faces."
+                )
+                return faces.filter { $0.id != primaryFace.face.id }
+            }
+        } catch {
+            Logger.app.error("Melange face landmark subject scoring failed; using largest face fallback. Error: \(error.localizedDescription, privacy: .public)")
+        }
+        #endif
+
+        return Self.bystanderFaces(from: faces)
     }
 
     private func detectWithVision(in image: UIImage) throws -> [RedactionRegion] {
@@ -175,6 +200,204 @@ final class MelangeFaceDetector {
     }
 
     #if canImport(ZeticMLange)
+    private func subjectScores(
+        from faces: [RedactionRegion],
+        in image: UIImage
+    ) async throws -> [FaceSubjectScore] {
+        let configuration = MelangeConfiguration.faceLandmark
+        guard configuration.isConfigured else {
+            return faces.map { face in
+                FaceSubjectScore(
+                    face: face,
+                    score: Self.geometricSubjectScore(for: face, imageSize: image.size),
+                    isLookingAtCamera: false
+                )
+            }
+        }
+
+        let model = try ZeticMLangeModel(
+            personalKey: configuration.personalKey,
+            name: configuration.modelName,
+            version: configuration.modelVersionNumber,
+            onDownload: { progress in
+                Logger.app.info("Melange face landmark download progress: \(progress, privacy: .public)")
+            }
+        )
+
+        return faces.map { face in
+            let geometryScore = Self.geometricSubjectScore(for: face, imageSize: image.size)
+
+            do {
+                let input = try makeFaceLandmarkInputTensor(from: image, faceRect: face.rect)
+                let outputs = try model.run(inputs: [input])
+                guard let landmarkResult = decodeFaceLandmarks(from: outputs) else {
+                    return FaceSubjectScore(
+                        face: face,
+                        score: geometryScore,
+                        isLookingAtCamera: false
+                    )
+                }
+
+                let landmarkScore = frontFacingScore(from: landmarkResult.landmarks)
+                let confidenceScore = max(0, min(Double(landmarkResult.confidence), 1))
+                let score = geometryScore * 0.55 + landmarkScore * 0.35 + confidenceScore * 0.10
+                return FaceSubjectScore(
+                    face: face,
+                    score: score,
+                    isLookingAtCamera: landmarkScore >= 0.58
+                )
+            } catch {
+                Logger.app.error("Face landmark scoring failed for one face; using geometry only. Error: \(error.localizedDescription, privacy: .public)")
+                return FaceSubjectScore(
+                    face: face,
+                    score: geometryScore,
+                    isLookingAtCamera: false
+                )
+            }
+        }
+    }
+
+    private static func geometricSubjectScore(for face: RedactionRegion, imageSize: CGSize) -> Double {
+        let imageArea = max(Double(imageSize.width * imageSize.height), 1)
+        let sizeScore = min(faceArea(face) / imageArea * 8.0, 1.0)
+
+        let imageCenter = CGPoint(x: imageSize.width / 2, y: imageSize.height / 2)
+        let faceCenter = CGPoint(x: face.rect.midX, y: face.rect.midY)
+        let maxDistance = max(hypot(imageSize.width / 2, imageSize.height / 2), 1)
+        let distance = hypot(faceCenter.x - imageCenter.x, faceCenter.y - imageCenter.y)
+        let centerScore = max(0, 1 - Double(distance / maxDistance))
+
+        return sizeScore * 0.70 + centerScore * 0.30
+    }
+
+    private func makeFaceLandmarkInputTensor(
+        from image: UIImage,
+        faceRect: CGRect
+    ) throws -> Tensor {
+        guard let cgImage = image.cgImage ?? UIGraphicsImageRenderer(size: image.size).image(actions: { _ in
+            image.draw(in: CGRect(origin: .zero, size: image.size))
+        }).cgImage else {
+            throw FaceDetectionError.unsupportedImage
+        }
+
+        let imageBounds = CGRect(origin: .zero, size: image.size)
+        let roi = expandedLandmarkROI(for: faceRect, imageBounds: imageBounds)
+        let width = faceLandmarkInputSize
+        let height = faceLandmarkInputSize
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        var rgba = [UInt8](repeating: 0, count: width * height * bytesPerPixel)
+
+        guard let context = CGContext(
+            data: &rgba,
+            width: width,
+            height: height,
+            bitsPerComponent: 8,
+            bytesPerRow: bytesPerRow,
+            space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+        ) else {
+            throw FaceDetectionError.unsupportedImage
+        }
+
+        context.interpolationQuality = .high
+        context.translateBy(x: 0, y: CGFloat(height))
+        context.scaleBy(x: CGFloat(width) / roi.width, y: -CGFloat(height) / roi.height)
+        context.translateBy(x: -roi.minX, y: -roi.minY)
+        context.draw(cgImage, in: imageBounds)
+
+        var floats = [Float32]()
+        floats.reserveCapacity(width * height * 3)
+        for index in stride(from: 0, to: rgba.count, by: bytesPerPixel) {
+            floats.append(Float32(rgba[index]) / 255.0)
+            floats.append(Float32(rgba[index + 1]) / 255.0)
+            floats.append(Float32(rgba[index + 2]) / 255.0)
+        }
+
+        let data = floats.withUnsafeBufferPointer { Data(buffer: $0) }
+        return Tensor(data: data, dataType: BuiltinDataType.float32, shape: [1, height, width, 3])
+    }
+
+    private func expandedLandmarkROI(for faceRect: CGRect, imageBounds: CGRect) -> CGRect {
+        let side = max(faceRect.width, faceRect.height) * 1.35
+        let center = CGPoint(x: faceRect.midX, y: faceRect.midY - faceRect.height * 0.04)
+        let rect = CGRect(
+            x: center.x - side / 2,
+            y: center.y - side / 2,
+            width: side,
+            height: side
+        )
+        return rect.intersection(imageBounds)
+    }
+
+    private func decodeFaceLandmarks(from outputs: [Tensor]) -> FaceLandmarkDecodeResult? {
+        guard let landmarkTensor = outputs.first(where: { $0.count() >= 468 * 3 }) else {
+            Logger.app.error("Melange face landmark returned no landmark tensor.")
+            return nil
+        }
+
+        let landmarkValues = floatArray(from: landmarkTensor)
+        guard landmarkValues.count >= 468 * 3 else { return nil }
+
+        var landmarks: [FaceLandmarkPoint] = []
+        landmarks.reserveCapacity(468)
+        for offset in stride(from: 0, to: 468 * 3, by: 3) {
+            landmarks.append(FaceLandmarkPoint(
+                x: landmarkValues[offset],
+                y: landmarkValues[offset + 1],
+                z: landmarkValues[offset + 2]
+            ))
+        }
+
+        let confidence = outputs
+            .filter { $0.count() == 1 }
+            .map { floatArray(from: $0).first ?? 0 }
+            .max() ?? 0
+
+        return FaceLandmarkDecodeResult(landmarks: normalizedLandmarks(landmarks), confidence: confidence)
+    }
+
+    private func normalizedLandmarks(_ landmarks: [FaceLandmarkPoint]) -> [FaceLandmarkPoint] {
+        let maxCoordinate = landmarks.reduce(Float32(0)) { partial, landmark in
+            max(partial, abs(landmark.x), abs(landmark.y))
+        }
+
+        guard maxCoordinate > 2 else { return landmarks }
+        let scale = Float32(faceLandmarkInputSize)
+        return landmarks.map { landmark in
+            FaceLandmarkPoint(
+                x: landmark.x / scale,
+                y: landmark.y / scale,
+                z: landmark.z / scale
+            )
+        }
+    }
+
+    private func frontFacingScore(from landmarks: [FaceLandmarkPoint]) -> Double {
+        guard landmarks.count > 291 else { return 0.5 }
+
+        let leftEye = landmarks[33]
+        let rightEye = landmarks[263]
+        let nose = landmarks[1]
+        let leftMouth = landmarks[61]
+        let rightMouth = landmarks[291]
+
+        let eyeCenterX = (leftEye.x + rightEye.x) / 2
+        let mouthCenterX = (leftMouth.x + rightMouth.x) / 2
+        let eyeDistance = max(abs(rightEye.x - leftEye.x), 0.001)
+        let mouthDistance = max(abs(rightMouth.x - leftMouth.x), 0.001)
+
+        let noseEyeOffset = abs(nose.x - eyeCenterX) / eyeDistance
+        let noseMouthOffset = abs(nose.x - mouthCenterX) / mouthDistance
+        let eyeTilt = abs(leftEye.y - rightEye.y) / eyeDistance
+
+        let symmetryScore = max(0, 1 - Double(noseEyeOffset) * 2.4)
+        let mouthScore = max(0, 1 - Double(noseMouthOffset) * 2.0)
+        let tiltScore = max(0, 1 - Double(eyeTilt) * 3.0)
+
+        return symmetryScore * 0.55 + mouthScore * 0.25 + tiltScore * 0.20
+    }
+
     private func makeMediaPipeInputTensor(from image: UIImage) throws -> Tensor {
         guard let cgImage = image.cgImage ?? UIGraphicsImageRenderer(size: image.size).image(actions: { _ in
             image.draw(in: CGRect(origin: .zero, size: image.size))
@@ -387,5 +610,22 @@ private struct MediaPipeAnchor {
 private struct MediaPipeFaceCandidate {
     let rect: CGRect
     let confidence: Float32
+}
+
+private struct FaceLandmarkPoint {
+    let x: Float32
+    let y: Float32
+    let z: Float32
+}
+
+private struct FaceLandmarkDecodeResult {
+    let landmarks: [FaceLandmarkPoint]
+    let confidence: Float32
+}
+
+private struct FaceSubjectScore {
+    let face: RedactionRegion
+    let score: Double
+    let isLookingAtCamera: Bool
 }
 #endif

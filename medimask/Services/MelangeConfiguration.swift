@@ -41,6 +41,24 @@ struct MelangeConfiguration {
         )
     }
 
+    static var faceLandmark: MelangeConfiguration {
+        let resolved = resolvedPersonalKey()
+        let info = Bundle.main.infoDictionary ?? [:]
+        let modelName = stringValue(for: "MelangeFaceLandmarkModelName", in: info)
+            ?? "google/MediaPipe-Face-Landmark"
+        let modelVersion = stringValue(for: "MelangeFaceLandmarkModelVersion", in: info)
+
+        Logger.app.info(
+            "Melange face landmark config resolved - bundle key present: \(!resolved.bundlePersonalKey.isEmpty, privacy: .public), local key present: \(!resolved.localPersonalKey.isEmpty, privacy: .public), model: \(modelName, privacy: .public), version: \(modelVersion ?? "<empty>", privacy: .public)"
+        )
+
+        return MelangeConfiguration(
+            personalKey: resolved.personalKey,
+            modelName: modelName,
+            modelVersion: modelVersion
+        )
+    }
+
     static var textAnonymizer: MelangeConfiguration {
         let resolved = resolvedPersonalKey()
         let info = Bundle.main.infoDictionary ?? [:]

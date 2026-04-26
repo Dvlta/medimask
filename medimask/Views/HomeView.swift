@@ -5,10 +5,8 @@ import UIKit
 struct HomeView: View {
     @State private var selectedImage: UIImage?
     @State private var detectionResult: DetectionResult?
-    @State private var previewRegions: [RedactionRegion] = []
     @State private var isShowingResult = false
     @State private var isScanning = false
-    @State private var isPreviewScanning = false
     @State private var errorMessage: String?
     @State private var hasCompletedScan = false
 
@@ -44,9 +42,6 @@ struct HomeView: View {
                 }
             } message: {
                 Text(errorMessage ?? "Unknown error")
-            }
-            .task(id: selectedImage) {
-                await buildPreviewRegions()
             }
         }
     }
@@ -111,12 +106,10 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(selectedImage == nil || isScanning || isPreviewScanning)
+            .disabled(selectedImage == nil || isScanning)
 
             if isScanning {
                 ProcessingStatusView(message: "Running face detection, OCR, and PHI rules on-device...")
-            } else if isPreviewScanning {
-                ProcessingStatusView(message: "Checking image for compromisable details...")
             }
 
             if hasCompletedScan, detectionResult != nil {
@@ -173,17 +166,14 @@ struct HomeView: View {
     }
 
     private var displayedRegions: [RedactionRegion] {
-        detectionResult?.regions ?? previewRegions
+        detectionResult?.regions ?? []
     }
 
     private var previewTitle: String {
         if detectionResult != nil {
             return "Review Detected Regions"
         }
-        if isPreviewScanning {
-            return "Pre-Scan Privacy Hints"
-        }
-        return previewRegions.isEmpty ? "Review" : "Pre-Scan Privacy Hints"
+        return "Review"
     }
 
     private var errorBinding: Binding<Bool> {
@@ -234,16 +224,4 @@ struct HomeView: View {
         isScanning = false
     }
 
-    @MainActor
-    private func buildPreviewRegions() async {
-        detectionResult = nil
-        previewRegions = []
-
-        guard let selectedImage else { return }
-
-        isPreviewScanning = true
-        let analysis = await pipeline.analyze(image: selectedImage)
-        previewRegions = analysis.regions
-        isPreviewScanning = false
-    }
 }

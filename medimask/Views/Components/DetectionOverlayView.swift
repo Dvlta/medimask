@@ -25,26 +25,40 @@ struct DetectionOverlayView: View {
                     .position(x: overlay.rect.midX, y: overlay.rect.midY)
 
                 let badge = overlay.badgeRect
-                Group {
-                    if selectedCategory == nil {
-                        Button(overlayDisplayLabel(for: overlay.label)) {
-                            onCategoryTap?(overlay.label)
-                        }
-                        .buttonStyle(.plain)
-                    } else {
+                if selectedCategory == nil {
+                    Button {
+                        onCategoryTap?(overlay.label)
+                    } label: {
                         Text(overlayDisplayLabel(for: overlay.label))
+                            .font(.system(size: snappedLabelFontSize, weight: .semibold))
+                            .lineLimit(nil)
+                            .minimumScaleFactor(1.0)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, horizontalPadding)
+                            .padding(.vertical, verticalPadding)
+                            .frame(width: badge.width, height: badge.height, alignment: .center)
+                            .background(overlay.color)
+                            .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                            .clipped()
                     }
+                    .buttonStyle(.plain)
+                    .position(x: badge.midX, y: badge.midY)
+                } else {
+                    Text(overlayDisplayLabel(for: overlay.label))
+                        .font(.system(size: snappedLabelFontSize, weight: .semibold))
+                        .lineLimit(nil)
+                        .minimumScaleFactor(1.0)
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.vertical, verticalPadding)
+                        .frame(width: badge.width, height: badge.height, alignment: .center)
+                        .background(overlay.color)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipped()
+                        .position(x: badge.midX, y: badge.midY)
                 }
-                .font(.system(size: labelFontSize, weight: .bold))
-                .lineLimit(1)
-                .minimumScaleFactor(1.0)
-                .foregroundStyle(.white)
-                .padding(.horizontal, horizontalPadding)
-                .frame(width: badge.width, height: badge.height, alignment: .leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .background(overlay.color)
-                .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
-                .position(x: badge.midX, y: badge.midY)
             }
         }
     }
@@ -118,15 +132,18 @@ struct DetectionOverlayView: View {
 
     private func badgeFrame(for overlay: OverlayRegion, reserved: inout [CGRect]) -> CGRect {
         let label = overlayDisplayLabel(for: overlay.label)
-        let fontSize = labelFontSize
-        let labelWidth = CGFloat(label.count) * fontSize * 0.54 + 12 + horizontalPadding * 2
+        let fontSize = snappedLabelFontSize
+        let labelWidth = CGFloat(label.count) * fontSize * 0.52 + 12 + horizontalPadding * 2
         let width = min(
-            containerSize.width - 8,
+            containerSize.width - 6,
             max(minBadgeWidth, min(maxBadgeWidth, max(overlay.rect.width * 0.72, labelWidth)))
         )
-        let charsPerLine = max(8, Int(width / max(fontSize * 0.56, 1)))
+        let charsPerLine = max(6, Int(width / max(fontSize * 0.54, 1)))
         let lineCount = max(1, Int(ceil(Double(label.count) / Double(charsPerLine))))
-        let height: CGFloat = max(minBadgeHeight, CGFloat(min(maxLabelLines, lineCount)) * (fontSize + 2) + 6)
+        let lineHeight = fontSize + 1.4
+        let dynamicHeight = CGFloat(lineCount) * lineHeight + (verticalPadding * 2) + 6
+        let maxAllowedHeight = max(22, containerSize.height * 0.85)
+        let height: CGFloat = min(maxAllowedHeight, max(minBadgeHeight, dynamicHeight))
         let minX = max(2, min(overlay.rect.minX + 2, containerSize.width - width - 2))
         var candidate = CGRect(x: minX, y: max(2, overlay.rect.minY - height - 2), width: width, height: height)
 
@@ -178,42 +195,49 @@ struct DetectionOverlayView: View {
         "\(base) #\(index)"
     }
 
-    private var maxLabelLines: Int {
-        1
+    private var isFocusedZoom: Bool {
+        zoomScale > 1.02 && (selectedCategory != nil || selectedRegionID != nil)
     }
 
     private var labelFontSize: CGFloat {
-        // Aggressive precision mode: zoom in => much smaller labels.
-        if zoomScale <= 1.0 { return 11.0 }
-        return max(6.0, 10.0 / min(3.0, zoomScale * 1.35))
+        if !isFocusedZoom { return 11.0 }
+        return max(5.2, 9.0 / min(3.6, zoomScale * 1.95))
+    }
+
+    private var snappedLabelFontSize: CGFloat {
+        max(5.0, round(labelFontSize * 2) / 2)
     }
 
     private var horizontalPadding: CGFloat {
-        zoomScale > 1.08 ? 2 : 6
+        isFocusedZoom ? 2 : 6
+    }
+
+    private var verticalPadding: CGFloat {
+        isFocusedZoom ? 2 : 4
     }
 
     private var minBadgeWidth: CGFloat {
-        zoomScale > 1.08 ? 52 : 96
+        isFocusedZoom ? 44 : 96
     }
 
     private var maxBadgeWidth: CGFloat {
-        zoomScale > 1.08 ? containerSize.width * 0.26 : containerSize.width * 0.72
+        isFocusedZoom ? containerSize.width * 0.42 : containerSize.width * 0.78
     }
 
     private var minBadgeHeight: CGFloat {
-        zoomScale > 1.08 ? 14 : 24
+        isFocusedZoom ? 12 : 24
     }
 
     private var boxLineWidth: CGFloat {
-        zoomScale > 1.08 ? 1.2 : 2.8
+        isFocusedZoom ? 0.95 : 2.8
     }
 
     private var boxDashLength: CGFloat {
-        zoomScale > 1.08 ? 5 : 10
+        isFocusedZoom ? 3 : 10
     }
 
     private var boxDashGap: CGFloat {
-        zoomScale > 1.08 ? 2 : 4
+        isFocusedZoom ? 1.5 : 4
     }
 
     private var mappedRegions: [OverlayRegion] {

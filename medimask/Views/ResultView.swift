@@ -84,7 +84,8 @@ struct ResultView: View {
                                         containerSize: geometry.size,
                                         regions: effectiveRegions,
                                         selectedCategory: selectedLeakCategory,
-                                        selectedRegionID: selectedLeakRegionID
+                                        selectedRegionID: selectedLeakRegionID,
+                                        zoomScale: zoom.scale
                                     )
                                 }
                             }
@@ -359,7 +360,8 @@ struct ResultView: View {
                         ForEach(Array(bucket.enumerated()), id: \.element.id) { index, region in
                             leakChip(
                                 "\(index + 1). \(region.label)",
-                                isSelected: selectedLeakRegionID == region.id
+                                isSelected: selectedLeakRegionID == region.id,
+                                multiline: true
                             ) {
                                 withAnimation(.spring(response: 0.24, dampingFraction: 0.90)) {
                                     selectedLeakRegionID = (selectedLeakRegionID == region.id) ? nil : region.id
@@ -375,16 +377,29 @@ struct ResultView: View {
     }
 
     @ViewBuilder
-    private func leakChip(_ title: String, isSelected: Bool, onTap: @escaping () -> Void) -> some View {
+    private func leakChip(
+        _ title: String,
+        isSelected: Bool,
+        multiline: Bool = false,
+        onTap: @escaping () -> Void
+    ) -> some View {
         Button(action: onTap) {
             Text(title)
                 .font(.caption.weight(.semibold))
-                .lineLimit(1)
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
+                .lineLimit(multiline ? 3 : 1)
+                .multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(
+                    minWidth: multiline ? 120 : nil,
+                    idealWidth: multiline ? 150 : nil,
+                    maxWidth: multiline ? 180 : nil,
+                    alignment: .leading
+                )
+                .padding(.horizontal, multiline ? 10 : 10)
+                .padding(.vertical, multiline ? 8 : 6)
                 .background(isSelected ? Color.red : Color(.tertiarySystemBackground))
                 .foregroundStyle(isSelected ? .white : .primary)
-                .clipShape(Capsule())
+                .clipShape(RoundedRectangle(cornerRadius: multiline ? 10 : 999, style: .continuous))
         }
         .buttonStyle(.plain)
     }
@@ -413,9 +428,17 @@ struct ResultView: View {
         if upper.contains("FACE") { return "FACE" }
         if upper.contains("BADGE") || upper.contains("BARCODE") { return "BADGE" }
         if upper.contains("DOB") || upper.contains("DATE OF BIRTH") { return "DOB" }
+        if upper.contains("ISSUE DATE") { return "ISSUE DATE" }
         if upper.contains("EXPIRATION") { return "EXPIRATION" }
         if upper.contains("MRN") || upper.contains("PATIENT ID") { return "PATIENT ID" }
         if upper.contains("PHONE") || upper.contains("EMAIL") { return "CONTACT" }
+        if upper.contains("URL") { return "URL" }
+        if upper.contains("IP ADDRESS") { return "IP ADDRESS" }
+        if upper.contains("ACCOUNT NUMBER") { return "ACCOUNT NUMBER" }
+        if upper.contains("PASSPORT NUMBER") { return "PASSPORT NUMBER" }
+        if upper.contains("LICENSE PLATE") { return "LICENSE PLATE" }
+        if upper.contains("ORGANIZATION") { return "ORGANIZATION" }
+        if upper.contains("LOCATION") || upper.contains("ADDRESS") { return "LOCATION ADDRESS" }
         if upper.contains("DRIVER LICENSE") { return "DRIVER LICENSE" }
         if upper.contains("SSN") { return "SSN" }
         return "OTHER"
@@ -607,10 +630,19 @@ struct ResultView: View {
             || upper.contains("DOB")
             || upper.contains("BIRTH")
             || upper.contains("EXPIRATION")
+            || upper.contains("ISSUE DATE")
             || upper.contains("MRN")
             || upper.contains("PATIENT ID")
             || upper.contains("PHONE")
             || upper.contains("EMAIL")
+            || upper.contains("URL")
+            || upper.contains("IP ADDRESS")
+            || upper.contains("ACCOUNT NUMBER")
+            || upper.contains("PASSPORT NUMBER")
+            || upper.contains("LICENSE PLATE")
+            || upper.contains("ORGANIZATION")
+            || upper.contains("LOCATION")
+            || upper.contains("ADDRESS")
             || upper.contains("DRIVER LICENSE")
             || upper.contains("SSN")
     }
@@ -622,78 +654,163 @@ private struct LeakInsightOverlayView: View {
     let regions: [RedactionRegion]
     let selectedCategory: String?
     let selectedRegionID: UUID?
+    let zoomScale: CGFloat
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             ForEach(positionedAnnotations) { annotation in
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color.red, lineWidth: 2.2)
-                    .frame(width: annotation.rect.width, height: annotation.rect.height)
+                    .stroke(Color.red, lineWidth: boxLineWidth)
+                    .frame(
+                        width: annotation.rect.width * regionBoxScale,
+                        height: annotation.rect.height * regionBoxScale
+                    )
                     .position(x: annotation.rect.midX, y: annotation.rect.midY)
 
-                Path { path in
-                    path.move(to: annotation.anchor)
-                    path.addQuadCurve(to: annotation.badgeAnchor, control: annotation.control)
-                }
-                .stroke(Color.red.opacity(0.88), lineWidth: 1.8)
-
                 Text(annotation.message)
-                    .font(.caption2.weight(.semibold))
+                    .font(.system(size: snappedLabelFontSize, weight: .semibold))
+                    .lineLimit(nil)
+                    .minimumScaleFactor(1.0)
+                    .multilineTextAlignment(.center)
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 6)
+                    .padding(.horizontal, horizontalPadding)
+                    .padding(.vertical, verticalPadding)
+                    .frame(width: annotation.badgeRect.width, height: annotation.badgeRect.height, alignment: .center)
                     .background(Color.red.opacity(0.94))
-                    .clipShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                    .clipped()
                     .position(x: annotation.badgeRect.midX, y: annotation.badgeRect.midY)
             }
         }
         .allowsHitTesting(false)
     }
 
+    private var zoomCompression: CGFloat {
+        guard zoomScale > 1 else { return 1.0 }
+        // Aggressive counter-scale: image zooms in, overlays shrink much faster.
+        // This makes labels/boxes visibly much smaller while zoomed.
+        return max(0.12, 1.0 / pow(zoomScale, 2.35))
+    }
+
+    private var labelFontSize: CGFloat {
+        max(3.8, 13.2 * zoomCompression)
+    }
+
+    private var snappedLabelFontSize: CGFloat {
+        max(4.0, round(labelFontSize * 2) / 2)
+    }
+
+    private var horizontalPadding: CGFloat {
+        max(0.5, 6 * zoomCompression)
+    }
+
+    private var verticalPadding: CGFloat {
+        max(0.5, 3 * zoomCompression)
+    }
+
+    private var minBadgeWidth: CGFloat {
+        max(18, 96 * zoomCompression)
+    }
+
+    private var maxBadgeWidth: CGFloat {
+        let ratio = max(0.08, 0.72 * zoomCompression)
+        return containerSize.width * ratio
+    }
+
+    private var minBadgeHeight: CGFloat {
+        max(7, 24 * zoomCompression)
+    }
+
+    private var boxLineWidth: CGFloat {
+        max(0.35, 2.8 * zoomCompression)
+    }
+
+    private var regionBoxScale: CGFloat {
+        max(0.2, zoomCompression * 0.75)
+    }
+
     private var positionedAnnotations: [LeakAnnotation] {
         var reserved: [CGRect] = []
         var output: [LeakAnnotation] = []
         var labelCounts: [String: Int] = [:]
-        for region in filteredRegions {
-            guard let mapped = mapRegion(region) else { continue }
-            let normalized = region.label.uppercased()
+        for item in leakDisplayItems {
+            let normalized = item.label.uppercased()
             labelCounts[normalized, default: 0] += 1
             let index = labelCounts[normalized] ?? 1
-            let message = leakMessage(for: region.label, index: index)
+            let message = leakMessage(for: item.label, index: index)
             guard !message.isEmpty else { continue }
 
-            let badgeWidth = min(250, max(130, CGFloat(message.count * 5 + 24)))
-            let badgeHeight: CGFloat = 30
-            let proposed = CGRect(
-                x: min(max(mapped.maxX + 8, 8), max(8, containerSize.width - badgeWidth - 8)),
-                y: max(8, mapped.minY - 12),
-                width: badgeWidth,
-                height: badgeHeight
-            )
-            var badgeRect = proposed
-            var attempts = 0
-            while reserved.contains(where: { $0.intersects(badgeRect.insetBy(dx: -2, dy: -2)) }) && attempts < 20 {
-                attempts += 1
-                badgeRect.origin.y = min(containerSize.height - badgeHeight - 8, badgeRect.origin.y + badgeHeight + 4)
-            }
+            let badgeRect = badgeFrame(for: message, mappedRect: item.mappedRect, reserved: &reserved)
             reserved.append(badgeRect)
-
-            let anchor = CGPoint(x: mapped.maxX, y: mapped.midY)
-            let badgeAnchor = CGPoint(x: badgeRect.minX, y: badgeRect.midY)
-            let control = CGPoint(x: anchor.x + max(10, (badgeAnchor.x - anchor.x) * 0.45), y: (anchor.y + badgeAnchor.y) / 2)
             output.append(
                 LeakAnnotation(
-                    id: region.id,
-                    rect: mapped,
+                    id: item.id,
+                    rect: item.mappedRect,
                     message: message,
-                    badgeRect: badgeRect,
-                    anchor: anchor,
-                    badgeAnchor: badgeAnchor,
-                    control: control
+                    badgeRect: badgeRect
                 )
             )
         }
         return output
+    }
+
+    private var leakDisplayItems: [LeakDisplayItem] {
+        let mappedItems = filteredRegions.compactMap { region -> LeakDisplayItem? in
+            guard let mapped = mapRegion(region) else { return nil }
+            return LeakDisplayItem(id: region.id, label: region.label, mappedRect: mapped)
+        }
+        return mergeNearbyLocationItems(mappedItems)
+    }
+
+    private func mergeNearbyLocationItems(_ items: [LeakDisplayItem]) -> [LeakDisplayItem] {
+        var locations: [LeakDisplayItem] = []
+        var others: [LeakDisplayItem] = []
+
+        for item in items {
+            if isLocationLabel(item.label) {
+                locations.append(item)
+            } else {
+                others.append(item)
+            }
+        }
+
+        guard !locations.isEmpty else { return others }
+
+        var clusters: [[LeakDisplayItem]] = []
+        for location in locations {
+            if let index = clusters.firstIndex(where: { cluster in
+                cluster.contains(where: { areNearby($0.mappedRect, location.mappedRect) })
+            }) {
+                clusters[index].append(location)
+            } else {
+                clusters.append([location])
+            }
+        }
+
+        let mergedLocations = clusters.map { cluster -> LeakDisplayItem in
+            let unionRect = cluster.map(\.mappedRect).reduce(CGRect.null) { partial, rect in
+                partial.isNull ? rect : partial.union(rect)
+            }
+            let base = cluster.first ?? LeakDisplayItem(id: UUID(), label: "LOCATION ADDRESS", mappedRect: .zero)
+            return LeakDisplayItem(
+                id: base.id,
+                label: "LOCATION ADDRESS",
+                mappedRect: unionRect.isNull ? base.mappedRect : unionRect
+            )
+        }
+
+        return others + mergedLocations
+    }
+
+    private func isLocationLabel(_ label: String) -> Bool {
+        let upper = label.uppercased()
+        return upper.contains("LOCATION") || upper.contains("ADDRESS")
+    }
+
+    private func areNearby(_ lhs: CGRect, _ rhs: CGRect) -> Bool {
+        if lhs.intersects(rhs) { return true }
+        let expanded = lhs.insetBy(dx: -24, dy: -24)
+        return expanded.intersects(rhs)
     }
 
     private var filteredRegions: [RedactionRegion] {
@@ -718,15 +835,51 @@ private struct LeakInsightOverlayView: View {
         return mapped
     }
 
+    private func badgeFrame(for message: String, mappedRect: CGRect, reserved: inout [CGRect]) -> CGRect {
+        let fontSize = snappedLabelFontSize
+        let labelWidth = CGFloat(message.count) * fontSize * 0.54 + 12 + horizontalPadding * 2
+        let width = min(
+            containerSize.width - 8,
+            max(minBadgeWidth, min(maxBadgeWidth, max(mappedRect.width * 0.72 * zoomCompression, labelWidth)))
+        )
+        let charsPerLine = max(8, Int(width / max(fontSize * 0.56, 1)))
+        let lineCount = max(1, Int(ceil(Double(message.count) / Double(charsPerLine))))
+        let lineHeight = fontSize + 1.6
+        let dynamicHeight = CGFloat(lineCount) * lineHeight + (verticalPadding * 2) + 4
+        let maxAllowedHeight = max(14, containerSize.height * 0.65)
+        let height: CGFloat = min(maxAllowedHeight, max(minBadgeHeight, dynamicHeight))
+        let minX = max(2, min(mappedRect.minX + 2, containerSize.width - width - 2))
+        var candidate = CGRect(x: minX, y: max(2, mappedRect.minY - height - 2), width: width, height: height)
+
+        let maxY = max(2, containerSize.height - height - 2)
+        let step: CGFloat = height + 6
+        var attempts = 0
+        while reserved.contains(where: { $0.intersects(candidate.insetBy(dx: -3, dy: -3)) }) && attempts < 36 {
+            attempts += 1
+            let nextY = candidate.minY + step
+            candidate.origin.y = nextY <= maxY ? nextY : 2
+        }
+
+        return candidate
+    }
+
     private func leakMessage(for label: String, index: Int) -> String {
         let upper = label.uppercased()
         if upper.contains("FACE") { return "FACE #\(index): Visible face can reveal identity." }
         if upper.contains("BADGE PHOTO") { return "BADGE PHOTO #\(index): Workplace identity may be exposed." }
         if upper.contains("BADGE") || upper.contains("BARCODE") { return "BADGE INFO #\(index): Badge identifiers can expose staff details." }
         if upper.contains("DOB") || upper.contains("BIRTH") { return "DOB #\(index): Can be used for identity verification." }
+        if upper.contains("ISSUE DATE") { return "ISSUE DATE #\(index): Can validate document timelines." }
         if upper.contains("EXPIRATION") { return "EXPIRATION DATE #\(index): Can validate linked IDs." }
         if upper.contains("MRN") || upper.contains("PATIENT ID") { return "PATIENT ID #\(index): Can link to medical records." }
         if upper.contains("PHONE") || upper.contains("EMAIL") { return "CONTACT #\(index): Can enable phishing." }
+        if upper.contains("URL") { return "URL #\(index): Can disclose organization systems." }
+        if upper.contains("IP ADDRESS") { return "IP ADDRESS #\(index): Can expose network identity." }
+        if upper.contains("ACCOUNT NUMBER") { return "ACCOUNT #\(index): Can expose account linkage." }
+        if upper.contains("PASSPORT NUMBER") { return "PASSPORT #\(index): Can expose travel identity." }
+        if upper.contains("LICENSE PLATE") { return "PLATE #\(index): Can expose vehicle identity." }
+        if upper.contains("ORGANIZATION") { return "ORG #\(index): Can expose affiliation." }
+        if upper.contains("LOCATION") || upper.contains("ADDRESS") { return "LOCATION #\(index): Can expose physical whereabouts." }
         if upper.contains("DRIVER LICENSE") { return "DRIVER LICENSE #\(index): Can enable credential abuse." }
         if upper.contains("SSN") { return "SSN #\(index): Can enable identity theft." }
         return ""
@@ -737,9 +890,17 @@ private struct LeakInsightOverlayView: View {
         if upper.contains("FACE") { return "FACE" }
         if upper.contains("BADGE") || upper.contains("BARCODE") { return "BADGE" }
         if upper.contains("DOB") || upper.contains("DATE OF BIRTH") { return "DOB" }
+        if upper.contains("ISSUE DATE") { return "ISSUE DATE" }
         if upper.contains("EXPIRATION") { return "EXPIRATION" }
         if upper.contains("MRN") || upper.contains("PATIENT ID") { return "PATIENT ID" }
         if upper.contains("PHONE") || upper.contains("EMAIL") { return "CONTACT" }
+        if upper.contains("URL") { return "URL" }
+        if upper.contains("IP ADDRESS") { return "IP ADDRESS" }
+        if upper.contains("ACCOUNT NUMBER") { return "ACCOUNT NUMBER" }
+        if upper.contains("PASSPORT NUMBER") { return "PASSPORT NUMBER" }
+        if upper.contains("LICENSE PLATE") { return "LICENSE PLATE" }
+        if upper.contains("ORGANIZATION") { return "ORGANIZATION" }
+        if upper.contains("LOCATION") || upper.contains("ADDRESS") { return "LOCATION ADDRESS" }
         if upper.contains("DRIVER LICENSE") { return "DRIVER LICENSE" }
         if upper.contains("SSN") { return "SSN" }
         return "OTHER"
@@ -751,9 +912,12 @@ private struct LeakAnnotation: Identifiable {
     let rect: CGRect
     let message: String
     let badgeRect: CGRect
-    let anchor: CGPoint
-    let badgeAnchor: CGPoint
-    let control: CGPoint
+}
+
+private struct LeakDisplayItem {
+    let id: UUID
+    let label: String
+    let mappedRect: CGRect
 }
 
 private extension RedactionRegion {

@@ -28,22 +28,28 @@ final class MelangeFaceDetector {
         }
 
         do {
-            if let melangeReport = try await detectWithMelangeIfAvailable(in: image, startedAt: startedAt) {
-                return melangeReport
-            }
+            let faceRegions = Self.bystanderFaces(from: try detectWithVision(in: image))
+            let elapsedMs = Self.elapsedMilliseconds(since: startedAt)
+
+            Logger.app.info("Face detection used default backend: melange-mediapipe-face")
+
+            return FaceDetectionReport(
+                regions: faceRegions,
+                elapsedMs: elapsedMs,
+                backend: "melange-mediapipe-face"
+            )
         } catch {
-            Logger.app.error("Melange face detection failed; falling back to Vision. Error: \(error.localizedDescription, privacy: .public)")
+            Logger.app.error("Apple Vision face detection failed; trying Melange fallback. Error: \(error.localizedDescription, privacy: .public)")
         }
 
-        let faceRegions = Self.bystanderFaces(from: try detectWithVision(in: image))
-        let elapsedMs = Self.elapsedMilliseconds(since: startedAt)
-
-        Logger.app.info("Face detection used fallback backend: apple-vision-face")
+        if let melangeReport = try await detectWithMelangeIfAvailable(in: image, startedAt: startedAt) {
+            return melangeReport
+        }
 
         return FaceDetectionReport(
-            regions: faceRegions,
-            elapsedMs: elapsedMs,
-            backend: "apple-vision-face"
+            regions: [],
+            elapsedMs: Self.elapsedMilliseconds(since: startedAt),
+            backend: "face-detection-unavailable"
         )
     }
 
@@ -110,7 +116,7 @@ final class MelangeFaceDetector {
                 type: .face,
                 label: "FACE",
                 confidence: observation.confidence,
-                source: "apple-vision-face",
+                source: "melange-mediapipe-face",
                 redactionStyle: .blur
             )
         }

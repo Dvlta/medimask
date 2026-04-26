@@ -29,23 +29,27 @@ final class MelangeFaceDetector {
         }
 
         do {
+            if let melangeReport = try await detectWithMelangeIfAvailable(in: image, startedAt: startedAt) {
+                return melangeReport
+            }
+        } catch {
+            Logger.app.error("Melange face detection failed; trying Apple Vision fallback. Error: \(error.localizedDescription, privacy: .public)")
+        }
+
+        do {
             let detectedFaces = try detectWithVision(in: image)
             let faceRegions = await bystanderFacesWithLandmarkFallback(from: detectedFaces, in: image)
             let elapsedMs = Self.elapsedMilliseconds(since: startedAt)
 
-            Logger.app.info("Face detection used default backend: melange-mediapipe-face")
+            Logger.app.info("Face detection used Apple Vision fallback.")
 
             return FaceDetectionReport(
                 regions: faceRegions,
                 elapsedMs: elapsedMs,
-                backend: "melange-mediapipe-face"
+                backend: "apple-vision-face-fallback"
             )
         } catch {
-            Logger.app.error("Apple Vision face detection failed; trying Melange fallback. Error: \(error.localizedDescription, privacy: .public)")
-        }
-
-        if let melangeReport = try await detectWithMelangeIfAvailable(in: image, startedAt: startedAt) {
-            return melangeReport
+            Logger.app.error("Apple Vision face detection fallback failed. Error: \(error.localizedDescription, privacy: .public)")
         }
 
         return FaceDetectionReport(
@@ -77,9 +81,8 @@ final class MelangeFaceDetector {
 
         let inputTensor = try makeMediaPipeInputTensor(from: image)
         let outputs = try model.run(inputs: [inputTensor])
-        let faceRegions = Self.bystanderFaces(
-            from: try decodeMediaPipeFaces(from: outputs, imageSize: image.size)
-        )
+        let detectedFaces = try decodeMediaPipeFaces(from: outputs, imageSize: image.size)
+        let faceRegions = await bystanderFacesWithLandmarkFallback(from: detectedFaces, in: image)
         let elapsedMs = Self.elapsedMilliseconds(since: startedAt)
 
         Logger.app.info(

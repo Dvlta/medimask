@@ -330,6 +330,30 @@ struct ResultView: View {
     }
 
     private func regionSubtitle(for region: RedactionRegion) -> String {
-        "x:\(Int(region.rect.minX.rounded())) y:\(Int(region.rect.minY.rounded()))"
+        let detector = region.source
+            .replacingOccurrences(of: "-", with: " ")
+            .capitalized
+        return "\(region.displayCategory) - \(detector)"
+    }
+}
+
+private extension RedactionRegion {
+    var displayCategory: String {
+        switch type {
+        case .phiText, .object:
+            return label.displayTitle
+        case .face:
+            return "Face"
+        case .unknown:
+            return label.isEmpty ? "Sensitive region" : label.displayTitle
+        }
+    }
+}
+
+private extension String {
+    var displayTitle: String {
+        replacingOccurrences(of: "_", with: " ")
+            .lowercased()
+            .capitalized
     }
 }

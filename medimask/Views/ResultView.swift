@@ -95,14 +95,17 @@ struct ResultView: View {
                     .padding(14)
                     .background(cardBackground)
 
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Detection Summary")
-                            .font(.headline)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Summary")
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(.secondary)
                         if result.regions.isEmpty {
                             Text("No sensitive regions found.")
+                                .font(.subheadline)
                         } else {
                             ForEach(summaryLines, id: \.self) { line in
                                 Text(line)
+                                    .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
                         }

@@ -5,6 +5,7 @@ struct DetectionOverlayView: View {
     let imageSize: CGSize
     let containerSize: CGSize
     let regions: [RedactionRegion]
+    var selectedCategory: String? = nil
 
     var body: some View {
         let callouts = layoutCallouts()
@@ -49,21 +50,37 @@ struct DetectionOverlayView: View {
     }
 
     private var mappedRegions: [OverlayRegion] {
-        regions.compactMap { region in
+        let filtered = regions.filter { region in
+            guard let selectedCategory else { return true }
+            return category(for: region.label) == selectedCategory
+        }
+
+        let grouped = Dictionary(grouping: filtered, by: { category(for: $0.label) })
+        return grouped.compactMap { category, group in
+            let unionRect = group.map(\.rect).reduce(CGRect.null) { partial, rect in
+                partial.isNull ? rect : partial.union(rect)
+            }
+            guard !unionRect.isNull else { return nil }
+
             let mappedRect = CoordinateMapper.mapImageRect(
-                region.rect,
+                unionRect,
                 imageSize: imageSize,
                 containerSize: containerSize,
                 padding: 2
             )
             guard mappedRect != .zero else { return nil }
+
+            let dominantType = group.contains(where: { $0.type == .face }) ? RegionType.face :
+                (group.contains(where: { $0.type == .object }) ? RegionType.object : .phiText)
+
             return OverlayRegion(
-                id: region.id,
+                id: group.first?.id ?? UUID(),
                 rect: mappedRect,
-                label: region.label,
-                color: color(for: region.type)
+                label: category,
+                color: color(for: dominantType)
             )
         }
+        .sorted { $0.rect.minY < $1.rect.minY }
     }
 
     private func layoutCallouts() -> [OverlayCallout] {
@@ -142,6 +159,26 @@ struct DetectionOverlayView: View {
         case .unknown:
             return .gray
         }
+    }
+
+    private func category(for label: String) -> String {
+        let upper = label.uppercased()
+        if upper.contains("BADGE") || upper.contains("BARCODE") || upper.contains("LICENSE") || upper.contains("STAFF") {
+            return "BADGE"
+        }
+        if upper.contains("FACE") {
+            return "FACE"
+        }
+        if upper.contains("PHONE") || upper.contains("EMAIL") || upper.contains("ADDRESS") {
+            return "CONTACT"
+        }
+        if upper.contains("DATE") {
+            return "DATES"
+        }
+        if upper.contains("MRN") || upper.contains("PATIENT") || upper.contains("INSURANCE") || upper.contains("SSN") {
+            return "PATIENT IDs"
+        }
+        return "OTHER"
     }
 }
 

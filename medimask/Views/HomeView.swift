@@ -19,7 +19,7 @@ struct HomeView: View {
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .center, spacing: 24) {
                     heroSection
                     PhotoPickerView(selectedImage: $selectedImage) { message in
                         errorMessage = message
@@ -30,7 +30,13 @@ struct HomeView: View {
                 .padding(20)
             }
             .navigationTitle("MediMask")
-            .background(Color(red: 0.97, green: 0.98, blue: 1.0).ignoresSafeArea())
+            .background(
+                LinearGradient(
+                    colors: [Color(red: 0.95, green: 0.98, blue: 1.0), Color(red: 0.98, green: 0.95, blue: 1.0)],
+                    startPoint: .topLeading,
+                    endPoint: .bottomTrailing
+                ).ignoresSafeArea()
+            )
             .sheet(isPresented: $isShowingResult) {
                 if let result = detectionResult {
                     ResultView(result: result)
@@ -54,13 +60,15 @@ struct HomeView: View {
     }
 
     private var heroSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .center, spacing: 12) {
             Text("Scan healthcare photos locally before you share them.")
                 .font(.system(.title2, design: .rounded))
                 .fontWeight(.bold)
                 .foregroundStyle(Color.primary)
+                .multilineTextAlignment(.center)
             Text("Faces, patient identifiers, and obvious PHI are detected on-device and redacted into a safe copy.")
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
             Label("Designed to work offline", systemImage: "airplane")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.blue)
@@ -68,11 +76,17 @@ struct HomeView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.green)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
-                .fill(Color.white)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white, Color(red: 0.94, green: 0.98, blue: 1.0)],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .stroke(Color.black.opacity(0.06), lineWidth: 1)
@@ -81,7 +95,7 @@ struct HomeView: View {
     }
 
     private var scanSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .center, spacing: 16) {
             if let selectedImage {
                 let reviewImage = detectionResult?.originalImage ?? selectedImage
                 ReviewView(
@@ -146,7 +160,7 @@ struct HomeView: View {
     @ViewBuilder
     private var summarySection: some View {
         if let detectionResult {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .center, spacing: 12) {
                 Text("Latest Scan")
                     .font(.headline)
                         .foregroundStyle(Color.primary)
@@ -159,7 +173,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(.bordered)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
             .padding(20)
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)

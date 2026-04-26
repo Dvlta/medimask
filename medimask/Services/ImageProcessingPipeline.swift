@@ -11,10 +11,22 @@ final class ImageProcessingPipeline {
         let totalStartedAt = CFAbsoluteTimeGetCurrent()
         let normalizedImage = imageOrientationFixer.normalize(image: image)
 
-        let faceReport = try await faceDetector.detectFacesReport(in: normalizedImage)
+        let faceReport: FaceDetectionReport
+        do {
+            faceReport = try await faceDetector.detectFacesReport(in: normalizedImage)
+        } catch {
+            Logger.app.error("Face detection failed: \(error.localizedDescription)")
+            faceReport = FaceDetectionReport(regions: [], elapsedMs: 0, backend: "failed-fallback-none")
+        }
 
         let ocrStartedAt = CFAbsoluteTimeGetCurrent()
-        let textObservations = try await ocrService.recognizeText(in: normalizedImage)
+        let textObservations: [OCRTextObservation]
+        do {
+            textObservations = try await ocrService.recognizeText(in: normalizedImage)
+        } catch {
+            Logger.app.error("OCR failed: \(error.localizedDescription)")
+            textObservations = []
+        }
         let ocrMs = Self.elapsedMilliseconds(since: ocrStartedAt)
 
         let phiStartedAt = CFAbsoluteTimeGetCurrent()

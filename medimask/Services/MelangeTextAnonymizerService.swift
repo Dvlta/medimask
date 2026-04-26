@@ -72,21 +72,42 @@ final class MelangeTextAnonymizerService {
 
         #if canImport(ZeticMLange)
         let model = try ZeticMLangeModel(
-            personalKey: "test",
-            name: "Steve/text-anonymizer-v1"
-//            version: 1,
-//            modelMode: ModelMode.RUN_AUTO,
-//            onDownload: { _ in }
+            personalKey: configuration.personalKey,
+            name: configuration.modelName,
+            version: configuration.modelVersionNumber,
+            onDownload: { progress in
+                Logger.app.info("Melange text anonymizer download progress: \(progress, privacy: .public)")
+            }
         )
-        _ = model
 
-        _ = tokenizer
-        _ = idToLabel
-        _ = makeChunks(from: observations, tokenizer: tokenizer)
-        Logger.app.info(
-            "Melange text anonymizer is configured, but the current ZeticMLange package build does not expose a constructible ZeticMLangeModel initializer to this target. Falling back to regex PHI detection while keeping the anonymizer integration seam in place."
+        let chunks = makeChunks(from: observations, tokenizer: tokenizer)
+        var detectedRegions: [RedactionRegion] = []
+
+        for chunk in chunks {
+            let encodedTokens = tokenizer.encodeDetailed(chunk.text)
+            let preparedInput = prepareInput(from: encodedTokens, tokenizer: tokenizer)
+            let outputs = try model.run(inputs: [
+                preparedInput.inputIds,
+                preparedInput.attentionMask
+            ])
+
+            guard let logitsTensor = outputs.first else {
+                Logger.app.error("Melange text anonymizer returned no output tensor.")
+                continue
+            }
+
+            let entities = decodeEntities(
+                from: logitsTensor,
+                encodedTokens: preparedInput.encodedTokens,
+                attentionMask: preparedInput.attentionMaskValues
+            )
+            detectedRegions.append(contentsOf: regions(from: entities, in: chunk))
+        }
+
+        return PHIDetectionReport(
+            regions: deduplicatedRegions(detectedRegions),
+            backend: "melange-text-anonymizer"
         )
-        return PHIDetectionReport(regions: [], backend: "melange-text-anonymizer-blocked")
         #else
         Logger.app.info("Melange text anonymizer configured but ZeticMLange is unavailable in this build.")
         return PHIDetectionReport(regions: [], backend: "melange-text-anonymizer-unavailable")

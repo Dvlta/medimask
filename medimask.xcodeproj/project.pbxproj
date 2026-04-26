@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 100;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -56,26 +56,20 @@
 /* Begin PBXFrameworksBuildPhase section */
 		E13526F92F9CA9D600765D94 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 				E119FD852F9D9F05006937DE /* ZeticMLange in Frameworks */,
 				E13528112F9D4BA600765D94 /* Accelerate.framework in Frameworks */,
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E13527092F9CA9D700765D94 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E13527132F9CA9D700765D94 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
@@ -122,8 +116,6 @@
 			);
 			buildRules = (
 			);
-			dependencies = (
-			);
 			fileSystemSynchronizedGroups = (
 				E13526FE2F9CA9D600765D94 /* medimask */,
 			);
@@ -152,8 +144,6 @@
 				E135270F2F9CA9D700765D94 /* medimaskTests */,
 			);
 			name = medimaskTests;
-			packageProductDependencies = (
-			);
 			productName = medimaskTests;
 			productReference = E135270C2F9CA9D700765D94 /* medimaskTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
@@ -175,8 +165,6 @@
 				E13527192F9CA9D700765D94 /* medimaskUITests */,
 			);
 			name = medimaskUITests;
-			packageProductDependencies = (
-			);
 			productName = medimaskUITests;
 			productReference = E13527162F9CA9D700765D94 /* medimaskUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
@@ -189,7 +177,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1600;
-				LastUpgradeCheck = 1600;
+				LastUpgradeCheck = 2640;
 				TargetAttributes = {
 					E13526FB2F9CA9D600765D94 = {
 						CreatedOnToolsVersion = 16.0;
@@ -216,7 +204,7 @@
 			packageReferences = (
 				E119FD832F9D9F05006937DE /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */,
 			);
-			preferredProjectObjectVersion = 77;
+			preferredProjectObjectVersion = 100;
 			productRefGroup = E13526FD2F9CA9D600765D94 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -231,48 +219,36 @@
 /* Begin PBXResourcesBuildPhase section */
 		E13526FA2F9CA9D600765D94 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E135270A2F9CA9D700765D94 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E13527142F9CA9D700765D94 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		E13526F82F9CA9D600765D94 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E13527082F9CA9D700765D94 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 		E13527122F9CA9D700765D94 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
 			files = (
 			);
-			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
@@ -290,7 +266,7 @@
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		E135271E2F9CA9D700765D94 /* Debug */ = {
+		E135271E2F9CA9D700765D94 /* Debug configuration for PBXProject "medimask" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -353,7 +329,7 @@
 			};
 			name = Debug;
 		};
-		E135271F2F9CA9D700765D94 /* Release */ = {
+		E135271F2F9CA9D700765D94 /* Release configuration for PBXProject "medimask" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ALWAYS_SEARCH_USER_PATHS = NO;
@@ -409,7 +385,7 @@
 			};
 			name = Release;
 		};
-		E13527212F9CA9D700765D94 /* Debug */ = {
+		E13527212F9CA9D700765D94 /* Debug configuration for PBXNativeTarget "medimask" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -446,7 +422,7 @@
 			};
 			name = Debug;
 		};
-		E13527222F9CA9D700765D94 /* Release */ = {
+		E13527222F9CA9D700765D94 /* Release configuration for PBXNativeTarget "medimask" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
@@ -483,7 +459,7 @@
 			};
 			name = Release;
 		};
-		E13527242F9CA9D700765D94 /* Debug */ = {
+		E13527242F9CA9D700765D94 /* Debug configuration for PBXNativeTarget "medimaskTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -501,7 +477,7 @@
 			};
 			name = Debug;
 		};
-		E13527252F9CA9D700765D94 /* Release */ = {
+		E13527252F9CA9D700765D94 /* Release configuration for PBXNativeTarget "medimaskTests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
@@ -519,7 +495,7 @@
 			};
 			name = Release;
 		};
-		E13527272F9CA9D700765D94 /* Debug */ = {
+		E13527272F9CA9D700765D94 /* Debug configuration for PBXNativeTarget "medimaskUITests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -535,7 +511,7 @@
 			};
 			name = Debug;
 		};
-		E13527282F9CA9D700765D94 /* Release */ = {
+		E13527282F9CA9D700765D94 /* Release configuration for PBXNativeTarget "medimaskUITests" */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
@@ -557,37 +533,33 @@
 		E13526F72F9CA9D600765D94 /* Build configuration list for PBXProject "medimask" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E135271E2F9CA9D700765D94 /* Debug */,
-				E135271F2F9CA9D700765D94 /* Release */,
+				E135271E2F9CA9D700765D94 /* Debug configuration for PBXProject "medimask" */,
+				E135271F2F9CA9D700765D94 /* Release configuration for PBXProject "medimask" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		E13527202F9CA9D700765D94 /* Build configuration list for PBXNativeTarget "medimask" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E13527212F9CA9D700765D94 /* Debug */,
-				E13527222F9CA9D700765D94 /* Release */,
+				E13527212F9CA9D700765D94 /* Debug configuration for PBXNativeTarget "medimask" */,
+				E13527222F9CA9D700765D94 /* Release configuration for PBXNativeTarget "medimask" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		E13527232F9CA9D700765D94 /* Build configuration list for PBXNativeTarget "medimaskTests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E13527242F9CA9D700765D94 /* Debug */,
-				E13527252F9CA9D700765D94 /* Release */,
+				E13527242F9CA9D700765D94 /* Debug configuration for PBXNativeTarget "medimaskTests" */,
+				E13527252F9CA9D700765D94 /* Release configuration for PBXNativeTarget "medimaskTests" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 		E13527262F9CA9D700765D94 /* Build configuration list for PBXNativeTarget "medimaskUITests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
-				E13527272F9CA9D700765D94 /* Debug */,
-				E13527282F9CA9D700765D94 /* Release */,
+				E13527272F9CA9D700765D94 /* Debug configuration for PBXNativeTarget "medimaskUITests" */,
+				E13527282F9CA9D700765D94 /* Release configuration for PBXNativeTarget "medimaskUITests" */,
 			);
-			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */

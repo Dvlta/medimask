@@ -15,6 +15,13 @@ private enum ResultTab: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+private enum OutputStyle: String, CaseIterable, Identifiable {
+    case clean = "Clean"
+    case insight = "Insight"
+
+    var id: String { rawValue }
+}
+
 struct ResultView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -29,6 +36,9 @@ struct ResultView: View {
     @State private var appearAnimation = false
     @State private var imageFullscreen = false
     @State private var snowPhase: CGFloat = 0
+    @State private var outputStyle: OutputStyle = .clean
+    @State private var selectedLeakCategory: String?
+    @State private var selectedLeakRegionID: UUID?
 
     private let imageRedactor = ImageRedactor()
 
@@ -146,20 +156,64 @@ struct ResultView: View {
             .padding(.horizontal, 20)
             .padding(.top, 56)
 
-            ZStack {
-                Image(uiImage: previewImage)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: .infinity)
-                    .frame(maxHeight: 360)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
-                            imageFullscreen = true
+            GeometryReader { geometry in
+                let focusRect = leakFocusRect()
+                let zoom = leakZoomTransform(for: focusRect, containerSize: geometry.size)
+
+                ZStack(alignment: .topLeading) {
+                    ZStack(alignment: .topLeading) {
+                        Image(uiImage: previewImage)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+                        if selectedTab == .scrubbed, outputStyle == .insight {
+                            LeakInsightOverlayView(
+                                imageSize: result.originalImage.size,
+                                containerSize: geometry.size,
+                                regions: effectiveRegions,
+                                selectedCategory: selectedLeakCategory,
+                                selectedRegionID: selectedLeakRegionID,
+                                zoomScale: zoom.scale
+                            )
                         }
                     }
-                    .animation(.easeInOut(duration: 0.3), value: selectedTab)
+                    .scaleEffect(zoom.scale, anchor: .center)
+                    .offset(x: zoom.offset.width, y: zoom.offset.height)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.86), value: selectedLeakCategory)
+                    .animation(.spring(response: 0.3, dampingFraction: 0.86), value: selectedLeakRegionID)
+
+                    if selectedTab == .scrubbed,
+                       outputStyle == .insight,
+                       (selectedLeakCategory != nil || selectedLeakRegionID != nil) {
+                        HStack {
+                            Spacer()
+                            Button {
+                                withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) {
+                                    selectedLeakCategory = nil
+                                    selectedLeakRegionID = nil
+                                }
+                            } label: {
+                                Image(systemName: "arrow.up.left.and.down.right.magnifyingglass")
+                                    .font(.system(size: 13, weight: .semibold))
+                                    .foregroundColor(iceDark)
+                                    .frame(width: 34, height: 34)
+                                    .background(Circle().fill(iceLight))
+                            }
+                            .padding(10)
+                        }
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture {
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.85)) {
+                        imageFullscreen = true
+                    }
+                }
+                .animation(.easeInOut(duration: 0.3), value: selectedTab)
             }
+            .frame(height: 360)
+            .clipped()
             .padding(8)
             .background(
                 RoundedRectangle(cornerRadius: 26, style: .continuous)
@@ -187,6 +241,27 @@ struct ResultView: View {
             .padding(4)
             .background(Capsule().fill(frostWhite.opacity(0.06)))
             .padding(.horizontal, 24)
+
+            if selectedTab == .scrubbed {
+                HStack(spacing: 0) {
+                    ForEach(OutputStyle.allCases) { style in
+                        iceToggleButton(title: style.rawValue, isSelected: outputStyle == style) {
+                            withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                outputStyle = style
+                                selectedLeakCategory = nil
+                                selectedLeakRegionID = nil
+                            }
+                        }
+                    }
+                }
+                .padding(4)
+                .background(Capsule().fill(frostWhite.opacity(0.06)))
+                .padding(.horizontal, 24)
+            }
+
+            if selectedTab == .scrubbed, outputStyle == .insight {
+                leakFilterPanel
+            }
         }
         .opacity(appearAnimation ? 1 : 0)
     }
@@ -382,6 +457,11 @@ struct ResultView: View {
                     .foregroundColor(frostWhite.opacity(0.3))
                     .lineLimit(1)
                     .minimumScaleFactor(0.8)
+                Text(descriptionForLabel(region.label))
+                    .font(.system(size: 11))
+                    .foregroundColor(frostWhite.opacity(0.44))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
             }
 
             Spacer()
@@ -570,50 +650,165 @@ struct ResultView: View {
     }
 
     private var leakRiskLines: [String] {
-        let labels = Set(effectiveRegions.map(\.label))
-        var lines: [String] = []
+        let labels = Array(Set(effectiveRegions.map(\.label))).sorted()
+        guard !labels.isEmpty else {
+            return ["No high-risk identifiers were detected in this scan."]
+        }
+        return labels.map { "\($0.displayTitle) was detected and selected for blurring." }
+    }
 
-        if labels.contains("DATE OF BIRTH") {
-            lines.append("Date of birth can be used to verify identity or security questions.")
+    private var leakFilterPanel: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Leak Topics")
+                    .font(.system(size: 13, weight: .heavy).width(.condensed))
+                    .foregroundColor(frostWhite.opacity(0.72))
+                Spacer()
+                Text("Tap to zoom")
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(frostWhite.opacity(0.32))
+            }
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    leakChip("ALL", isSelected: selectedLeakCategory == nil) {
+                        withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+                            selectedLeakCategory = nil
+                            selectedLeakRegionID = nil
+                        }
+                    }
+
+                    ForEach(leakCategories, id: \.self) { category in
+                        leakChip(category, isSelected: selectedLeakCategory == category) {
+                            withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+                                selectedLeakCategory = category
+                                selectedLeakRegionID = nil
+                            }
+                        }
+                    }
+                }
+            }
+
+            if let selectedLeakCategory,
+               let bucket = leakGroupedRegions[selectedLeakCategory],
+               !bucket.isEmpty {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(Array(bucket.enumerated()), id: \.element.id) { index, region in
+                            leakChip(
+                                "\(index + 1). \(region.label)",
+                                isSelected: selectedLeakRegionID == region.id,
+                                multiline: true
+                            ) {
+                                withAnimation(.spring(response: 0.24, dampingFraction: 0.9)) {
+                                    selectedLeakRegionID = selectedLeakRegionID == region.id ? nil : region.id
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
-        if labels.contains("MEDICAL RECORD NUMBER") {
-            lines.append("Medical record numbers can link someone to clinical records.")
+        .padding(14)
+        .background(
+            RoundedRectangle(cornerRadius: 18, style: .continuous)
+                .fill(iceCard.opacity(0.55))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .strokeBorder(iceTeal.opacity(0.10), lineWidth: 1)
+                )
+        )
+        .padding(.horizontal, 20)
+    }
+
+    private func leakChip(
+        _ title: String,
+        isSelected: Bool,
+        multiline: Bool = false,
+        onTap: @escaping () -> Void
+    ) -> some View {
+        Button(action: onTap) {
+            Text(title)
+                .font(.system(size: multiline ? 11 : 12, weight: .bold))
+                .tracking(multiline ? 0 : 0.3)
+                .lineLimit(multiline ? 2 : 1)
+                .multilineTextAlignment(.leading)
+                .minimumScaleFactor(0.8)
+                .frame(
+                    minWidth: multiline ? 112 : nil,
+                    idealWidth: multiline ? 138 : nil,
+                    maxWidth: multiline ? 166 : nil,
+                    alignment: .leading
+                )
+                .padding(.horizontal, multiline ? 10 : 12)
+                .padding(.vertical, multiline ? 8 : 7)
+                .foregroundColor(isSelected ? iceDark : frostWhite.opacity(0.58))
+                .background(
+                    RoundedRectangle(cornerRadius: multiline ? 10 : 999, style: .continuous)
+                        .fill(isSelected ? iceLight : frostWhite.opacity(0.05))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: multiline ? 10 : 999, style: .continuous)
+                                .strokeBorder(isSelected ? iceLight.opacity(0.0) : iceTeal.opacity(0.10), lineWidth: 1)
+                        )
+                )
         }
-        if labels.contains("INSURANCE ID") {
-            lines.append("Insurance IDs can enable benefits fraud and account misuse.")
-        }
-        if labels.contains("PHONE NUMBER") || labels.contains("EMAIL ADDRESS") || labels.contains("ADDRESS") {
-            lines.append("Contact details can enable phishing, social engineering, and harassment.")
-        }
-        if labels.contains("SOCIAL SECURITY NUMBER") {
-            lines.append("SSNs can directly enable identity theft and financial fraud.")
-        }
-        if labels.contains("PATIENT ID") || labels.contains("PATIENT") {
-            lines.append("Patient identifiers can reveal healthcare association and treatment context.")
-        }
-        if labels.contains("PRESCRIPTION NUMBER") {
-            lines.append("Prescription identifiers can reveal medication profile and refill timelines.")
-        }
-        if labels.contains("EXPIRATION DATE") {
-            lines.append("Expiration dates can help validate linked IDs or cards when combined with other data.")
-        }
-        if labels.contains("DRIVER LICENSE NUMBER") {
-            lines.append("Driver license numbers can enable identity verification abuse and credential fraud.")
-        }
-        if labels.contains("STAFF BADGE INFO") || labels.contains("BARCODE") || labels.contains("BARCODE / ID VALUE") {
-            lines.append("Badge identifiers and barcodes can expose employee identity and internal access references.")
-        }
-        if labels.contains("BADGE PHOTO") {
-            lines.append("Badge photos can reveal identity and workplace affiliation.")
-        }
-        if labels.contains("FACE") {
-            lines.append("Visible faces can reveal identity, location, and clinical presence.")
+        .buttonStyle(.plain)
+    }
+
+    private var leakCategories: [String] {
+        Array(leakGroupedRegions.keys).sorted()
+    }
+
+    private var leakGroupedRegions: [String: [RedactionRegion]] {
+        Dictionary(grouping: effectiveRegions) { displayLabel(for: $0.label) }
+    }
+
+    private func displayLabel(for label: String) -> String {
+        label.isEmpty ? "Sensitive Region" : label.displayTitle
+    }
+
+    private func leakFocusRect() -> CGRect? {
+        let selected: [RedactionRegion]
+        if let selectedLeakRegionID {
+            selected = effectiveRegions.filter { $0.id == selectedLeakRegionID }
+        } else if let selectedLeakCategory {
+            selected = effectiveRegions.filter { displayLabel(for: $0.label) == selectedLeakCategory }
+        } else {
+            selected = []
         }
 
-        if lines.isEmpty {
-            lines.append("No high-risk identifiers were detected in this scan.")
+        guard !selected.isEmpty else { return nil }
+        return selected.map(\.rect).reduce(CGRect.null) { partial, rect in
+            partial.isNull ? rect : partial.union(rect)
         }
-        return lines
+    }
+
+    private func leakZoomTransform(for focusRect: CGRect?, containerSize: CGSize) -> (scale: CGFloat, offset: CGSize) {
+        guard let focusRect,
+              !focusRect.isNull,
+              focusRect.width > 0,
+              focusRect.height > 0 else {
+            return (1.0, .zero)
+        }
+
+        let mapped = CoordinateMapper.mapImageRect(
+            focusRect,
+            imageSize: result.originalImage.size,
+            containerSize: containerSize,
+            padding: 8
+        )
+        guard mapped != .zero else {
+            return (1.0, .zero)
+        }
+
+        let desiredCoverage: CGFloat = 0.60
+        let scaleX = containerSize.width / max(mapped.width / desiredCoverage, 1)
+        let scaleY = containerSize.height / max(mapped.height / desiredCoverage, 1)
+        let scale = min(2.7, max(1.0, min(scaleX, scaleY)))
+
+        let center = CGPoint(x: containerSize.width / 2, y: containerSize.height / 2)
+        let target = CGPoint(x: mapped.midX, y: mapped.midY)
+        return (scale, CGSize(width: (center.x - target.x) * scale, height: (center.y - target.y) * scale))
     }
 
     private var selectableRegions: [RedactionRegion] {
@@ -669,6 +864,10 @@ struct ResultView: View {
         return "\(region.displayCategory) - \(detector)"
     }
 
+    private func descriptionForLabel(_ label: String) -> String {
+        "\(displayLabel(for: label)) was detected by the pipeline."
+    }
+
     private func icon(for region: RedactionRegion) -> String {
         switch region.type {
         case .face:
@@ -678,24 +877,214 @@ struct ResultView: View {
         case .unknown:
             return "shield.lefthalf.filled"
         case .phiText:
-            if region.label.contains("DATE") {
-                return "calendar"
-            }
-            if region.label.contains("LOCATION") || region.label.contains("ADDRESS") {
-                return "mappin.circle"
-            }
-            if region.label.contains("PHONE") {
-                return "phone.fill"
-            }
-            if region.label.contains("EMAIL") {
-                return "envelope.fill"
-            }
-            if region.label.contains("PERSON") || region.label.contains("NAME") {
-                return "person.fill"
-            }
             return "doc.text.fill"
         }
     }
+}
+
+private struct LeakInsightOverlayView: View {
+    let imageSize: CGSize
+    let containerSize: CGSize
+    let regions: [RedactionRegion]
+    let selectedCategory: String?
+    let selectedRegionID: UUID?
+    let zoomScale: CGFloat
+
+    private let iceDark = Color(red: 0.05, green: 0.12, blue: 0.15)
+    private let iceLight = Color(red: 0.55, green: 0.82, blue: 0.85)
+    private let frozenRed = Color(red: 0.85, green: 0.35, blue: 0.38)
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            ForEach(positionedAnnotations) { annotation in
+                RoundedRectangle(cornerRadius: showsMessages ? 8 : 5, style: .continuous)
+                    .stroke(frozenRed, lineWidth: boxLineWidth)
+                    .frame(
+                        width: indicatorRect(for: annotation.rect).width,
+                        height: indicatorRect(for: annotation.rect).height
+                    )
+                    .position(x: annotation.rect.midX, y: annotation.rect.midY)
+
+                if showsMessages {
+                    Text(annotation.message)
+                        .font(.system(size: snappedLabelFontSize, weight: .semibold))
+                        .lineLimit(nil)
+                        .minimumScaleFactor(0.85)
+                        .multilineTextAlignment(.center)
+                        .foregroundColor(iceDark)
+                        .padding(.horizontal, horizontalPadding)
+                        .padding(.vertical, verticalPadding)
+                        .frame(width: annotation.badgeRect.width, height: annotation.badgeRect.height)
+                        .background(iceLight.opacity(0.96))
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
+                        .clipped()
+                        .position(x: annotation.badgeRect.midX, y: annotation.badgeRect.midY)
+                }
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private var showsMessages: Bool {
+        selectedCategory != nil || selectedRegionID != nil
+    }
+
+    private var zoomCompression: CGFloat {
+        guard zoomScale > 1 else { return 1.0 }
+        return max(0.12, 1.0 / pow(zoomScale, 2.35))
+    }
+
+    private var labelFontSize: CGFloat {
+        max(3.8, 13.2 * zoomCompression)
+    }
+
+    private var snappedLabelFontSize: CGFloat {
+        max(4.0, round(labelFontSize * 2) / 2)
+    }
+
+    private var horizontalPadding: CGFloat {
+        max(0.5, 6 * zoomCompression)
+    }
+
+    private var verticalPadding: CGFloat {
+        max(0.5, 3 * zoomCompression)
+    }
+
+    private var minBadgeWidth: CGFloat {
+        max(18, 96 * zoomCompression)
+    }
+
+    private var maxBadgeWidth: CGFloat {
+        containerSize.width * max(0.08, 0.72 * zoomCompression)
+    }
+
+    private var minBadgeHeight: CGFloat {
+        max(7, 24 * zoomCompression)
+    }
+
+    private var boxLineWidth: CGFloat {
+        showsMessages ? max(0.35, 2.8 * zoomCompression) : 2.2
+    }
+
+    private var regionBoxScale: CGFloat {
+        showsMessages ? max(0.2, zoomCompression * 0.75) : 1.0
+    }
+
+    private func indicatorRect(for rect: CGRect) -> CGSize {
+        if showsMessages {
+            return CGSize(width: rect.width * regionBoxScale, height: rect.height * regionBoxScale)
+        }
+
+        return CGSize(
+            width: max(16, min(42, rect.width * 0.42)),
+            height: max(10, min(30, rect.height * 0.42))
+        )
+    }
+
+    private var positionedAnnotations: [LeakAnnotation] {
+        var reserved: [CGRect] = []
+        var output: [LeakAnnotation] = []
+        var labelCounts: [String: Int] = [:]
+
+        for item in leakDisplayItems {
+            let normalized = item.label.uppercased()
+            labelCounts[normalized, default: 0] += 1
+            let index = labelCounts[normalized] ?? 1
+            let message = leakMessage(for: item.label, index: index)
+            guard !message.isEmpty else { continue }
+
+            let badgeRect = badgeFrame(for: message, mappedRect: item.mappedRect, reserved: &reserved)
+            reserved.append(badgeRect)
+            output.append(
+                LeakAnnotation(
+                    id: item.id,
+                    rect: item.mappedRect,
+                    message: message,
+                    badgeRect: badgeRect
+                )
+            )
+        }
+
+        return output
+    }
+
+    private var leakDisplayItems: [LeakDisplayItem] {
+        filteredRegions.compactMap { region -> LeakDisplayItem? in
+            guard let mapped = mapRegion(region) else { return nil }
+            return LeakDisplayItem(id: region.id, label: region.label, mappedRect: mapped)
+        }
+    }
+
+    private var filteredRegions: [RedactionRegion] {
+        var working = regions
+        if let selectedCategory {
+            working = working.filter { displayLabel(for: $0.label) == selectedCategory }
+        }
+        if let selectedRegionID {
+            working = working.filter { $0.id == selectedRegionID }
+        }
+        return working
+    }
+
+    private func mapRegion(_ region: RedactionRegion) -> CGRect? {
+        let mapped = CoordinateMapper.mapImageRect(
+            region.rect,
+            imageSize: imageSize,
+            containerSize: containerSize,
+            padding: 2
+        )
+        guard mapped != .zero else { return nil }
+        return mapped
+    }
+
+    private func badgeFrame(for message: String, mappedRect: CGRect, reserved: inout [CGRect]) -> CGRect {
+        let fontSize = snappedLabelFontSize
+        let labelWidth = CGFloat(message.count) * fontSize * 0.54 + 12 + horizontalPadding * 2
+        let width = min(
+            containerSize.width - 8,
+            max(minBadgeWidth, min(maxBadgeWidth, max(mappedRect.width * 0.72 * zoomCompression, labelWidth)))
+        )
+        let charsPerLine = max(8, Int(width / max(fontSize * 0.56, 1)))
+        let lineCount = max(1, Int(ceil(Double(message.count) / Double(charsPerLine))))
+        let lineHeight = fontSize + 1.6
+        let dynamicHeight = CGFloat(lineCount) * lineHeight + verticalPadding * 2 + 4
+        let maxAllowedHeight = max(14, containerSize.height * 0.65)
+        let height = min(maxAllowedHeight, max(minBadgeHeight, dynamicHeight))
+        let minX = max(2, min(mappedRect.minX + 2, containerSize.width - width - 2))
+        var candidate = CGRect(x: minX, y: max(2, mappedRect.minY - height - 2), width: width, height: height)
+
+        let maxY = max(2, containerSize.height - height - 2)
+        let step = height + 6
+        var attempts = 0
+        while reserved.contains(where: { $0.intersects(candidate.insetBy(dx: -3, dy: -3)) }) && attempts < 36 {
+            attempts += 1
+            let nextY = candidate.minY + step
+            candidate.origin.y = nextY <= maxY ? nextY : 2
+        }
+
+        return candidate
+    }
+
+    private func leakMessage(for label: String, index: Int) -> String {
+        "\(displayLabel(for: label)) #\(index)"
+    }
+
+    private func displayLabel(for label: String) -> String {
+        label.isEmpty ? "Sensitive Region" : label.displayTitle
+    }
+}
+
+private struct LeakAnnotation: Identifiable {
+    let id: UUID
+    let rect: CGRect
+    let message: String
+    let badgeRect: CGRect
+}
+
+private struct LeakDisplayItem {
+    let id: UUID
+    let label: String
+    let mappedRect: CGRect
 }
 
 private extension RedactionRegion {

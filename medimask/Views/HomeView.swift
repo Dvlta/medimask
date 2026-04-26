@@ -6,6 +6,7 @@ private enum HomeProcessingState {
     case idle
     case photoSelected(UIImage)
     case processing(UIImage)
+    case reviewed(DetectionResult)
 }
 
 struct HomeView: View {
@@ -34,6 +35,9 @@ struct HomeView: View {
     private var processingState: HomeProcessingState {
         if isScanning, let selectedImage {
             return .processing(selectedImage)
+        }
+        if let detectionResult {
+            return .reviewed(detectionResult)
         }
         if let selectedImage {
             return .photoSelected(selectedImage)
@@ -78,6 +82,11 @@ struct HomeView: View {
             Text(errorMessage ?? "Unknown error")
         }
         .onAppear(perform: startAmbientAnimation)
+        .onChange(of: photoItem) { _, newItem in
+            Task {
+                await loadPhoto(from: newItem)
+            }
+        }
     }
 
     private var snowfall: some View {
@@ -202,6 +211,8 @@ struct HomeView: View {
             uploadArea(preview: image)
         case .processing(let image):
             processingArea(image)
+        case .reviewed(let result):
+            reviewArea(result)
         }
     }
 
@@ -304,11 +315,6 @@ struct HomeView: View {
                 }
             }
         }
-        .onChange(of: photoItem) { _, newItem in
-            Task {
-                await loadPhoto(from: newItem)
-            }
-        }
         .opacity(appearAnimation ? 1 : 0)
         .offset(y: appearAnimation ? 0 : 20)
         .animation(.spring(response: 0.6, dampingFraction: 0.8), value: selectedImage)
@@ -387,20 +393,59 @@ struct HomeView: View {
         }
     }
 
+    private func reviewArea(_ result: DetectionResult) -> some View {
+        VStack(spacing: 18) {
+            ReviewView(
+                image: result.originalImage,
+                regions: result.regions,
+                title: "Review Detected Regions"
+            )
+
+            PhotosPicker(selection: $photoItem, matching: .images) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.triangle.2.circlepath")
+                        .font(.system(size: 11))
+                    Text("change photo")
+                        .font(.system(size: 13, weight: .medium))
+                }
+                .foregroundColor(iceLight.opacity(0.7))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(frostWhite.opacity(0.06)))
+                .overlay(Capsule().strokeBorder(frostWhite.opacity(0.08), lineWidth: 1))
+            }
+        }
+        .padding(18)
+        .background(
+            RoundedRectangle(cornerRadius: 26, style: .continuous)
+                .fill(iceDark.opacity(0.28))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 26, style: .continuous)
+                        .strokeBorder(iceTeal.opacity(0.12), lineWidth: 1)
+                )
+        )
+        .opacity(appearAnimation ? 1 : 0)
+        .offset(y: appearAnimation ? 0 : 20)
+    }
+
     private var actionButton: some View {
         Button {
             buttonPressed = true
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
                 buttonPressed = false
             }
-            Task {
-                await scanSelectedImage()
+            if detectionResult != nil {
+                isShowingResult = true
+            } else {
+                Task {
+                    await scanSelectedImage()
+                }
             }
         } label: {
             HStack(spacing: 10) {
                 Image(systemName: "wand.and.stars")
                     .font(.system(size: 18, weight: .semibold))
-                Text(isScanning ? "Freezing..." : "Blur Photo")
+                Text(actionButtonTitle)
                     .font(.system(size: 20, weight: .bold, design: .rounded))
             }
             .foregroundColor(buttonEnabled ? iceDark : frostWhite.opacity(0.2))
@@ -446,7 +491,17 @@ struct HomeView: View {
     }
 
     private var buttonEnabled: Bool {
-        selectedImage != nil && !isScanning
+        (selectedImage != nil || detectionResult != nil) && !isScanning
+    }
+
+    private var actionButtonTitle: String {
+        if isScanning {
+            return "Freezing..."
+        }
+        if detectionResult != nil {
+            return "Open Result"
+        }
+        return "Blur Photo"
     }
 
     private var tagline: some View {

@@ -13,13 +13,11 @@ struct HomeView: View {
     @State private var hasCompletedScan = false
 
     private let pipeline = ImageProcessingPipeline()
-    private let ocrService = VisionOCRService()
-    private let phiDetector = SensitiveTextRegionDetector()
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
+                VStack(alignment: .center, spacing: 24) {
                     heroSection
                     PhotoPickerView(selectedImage: $selectedImage) { message in
                         errorMessage = message
@@ -54,13 +52,15 @@ struct HomeView: View {
     }
 
     private var heroSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .center, spacing: 12) {
             Text("Scan healthcare photos locally before you share them.")
                 .font(.system(.title2, design: .rounded))
                 .fontWeight(.bold)
                 .foregroundStyle(Color.primary)
+                .multilineTextAlignment(.center)
             Text("Faces, patient identifiers, and obvious PHI are detected on-device and redacted into a safe copy.")
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
             Label("Designed to work offline", systemImage: "airplane")
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.blue)
@@ -68,7 +68,7 @@ struct HomeView: View {
                 .font(.subheadline.weight(.semibold))
                 .foregroundStyle(.green)
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .frame(maxWidth: .infinity, alignment: .center)
         .padding(20)
         .background(
             RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -81,7 +81,7 @@ struct HomeView: View {
     }
 
     private var scanSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .center, spacing: 16) {
             if let selectedImage {
                 let reviewImage = detectionResult?.originalImage ?? selectedImage
                 ReviewView(
@@ -111,7 +111,7 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .disabled(selectedImage == nil || isScanning)
+            .disabled(selectedImage == nil || isScanning || isPreviewScanning)
 
             if isScanning {
                 ProcessingStatusView(message: "Running face detection, OCR, and PHI rules on-device...")
@@ -146,10 +146,10 @@ struct HomeView: View {
     @ViewBuilder
     private var summarySection: some View {
         if let detectionResult {
-            VStack(alignment: .leading, spacing: 12) {
+            VStack(alignment: .center, spacing: 12) {
                 Text("Latest Scan")
                     .font(.headline)
-                        .foregroundStyle(Color.primary)
+                    .foregroundStyle(Color.primary)
                 ForEach(detectionSummaryLines(for: detectionResult), id: \.self) { line in
                     Text(line)
                         .foregroundStyle(.secondary)
@@ -159,7 +159,7 @@ struct HomeView: View {
                 }
                 .buttonStyle(.bordered)
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(maxWidth: .infinity, alignment: .center)
             .padding(20)
             .background(
                 RoundedRectangle(cornerRadius: 24, style: .continuous)
@@ -209,12 +209,11 @@ struct HomeView: View {
             .map { label in
                 "\(label): \(grouped[label]?.count ?? 0)"
             }
-        return [
-            "Detected:",
-            "- Faces: \(faceCount)",
-            "- PHI text: \(textCount)",
-            "- Objects: \(objectCount)"
-        ] + summary + ["Total: \(result.regions.count) regions"]
+        var lines: [String] = ["Detected:"]
+        if faceCount > 0 { lines.append("- Faces: \(faceCount)") }
+        if textCount > 0 { lines.append("- PHI text: \(textCount)") }
+        if objectCount > 0 { lines.append("- Objects: \(objectCount)") }
+        return lines + summary + ["Total: \(result.regions.count) regions"]
     }
 
     @MainActor
@@ -243,12 +242,8 @@ struct HomeView: View {
         guard let selectedImage else { return }
 
         isPreviewScanning = true
-        do {
-            let textObservations = try await ocrService.recognizeText(in: selectedImage)
-            previewRegions = await phiDetector.detectPHI(in: textObservations).regions
-        } catch {
-            Logger.app.error("Preview detection failed: \(error.localizedDescription)")
-        }
+        let analysis = await pipeline.analyze(image: selectedImage)
+        previewRegions = analysis.regions
         isPreviewScanning = false
     }
 }

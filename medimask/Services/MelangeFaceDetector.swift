@@ -152,20 +152,9 @@ final class MelangeFaceDetector {
     }
 
     private static func bystanderFaces(from faces: [RedactionRegion]) -> [RedactionRegion] {
-        guard faces.count > 1,
-              let primaryFace = faces.max(by: { faceArea($0) < faceArea($1) }) else {
-            return []
-        }
-
-        Logger.app.info(
-            "Preserving primary face with area \(faceArea(primaryFace), privacy: .public); blurring \(faces.count - 1, privacy: .public) bystander faces."
-        )
-
-        return faces.filter { $0.id != primaryFace.id }
-    }
-
-    private static func faceArea(_ face: RedactionRegion) -> Double {
-        Double(face.rect.width * face.rect.height)
+        if faces.isEmpty { return [] }
+        Logger.app.info("Detected faces for redaction: \(faces.count, privacy: .public)")
+        return faces
     }
 
     #if canImport(ZeticMLange)

@@ -4,21 +4,28 @@ import CoreGraphics
 final class PHIDetector {
     private let phiPatterns: [(label: String, regex: String)] = [
         ("EMAIL ADDRESS", #"[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"#),
+        ("URL", #"\bhttps?://[^\s]+|\bwww\.[^\s]+\b"#),
         ("PHONE NUMBER", #"\b(\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"#),
         ("DATE OF BIRTH", #"\b(DOB|Date of Birth|Birth Date)\b[:\s]*\d{1,2}[/-]\d{1,2}[/-]\d{2,4}"#),
         ("MEDICAL RECORD NUMBER", #"\b(MRN|Medical Record|Medical Record Number)\b[:\s#-]*[A-Z0-9-]{4,}\b"#),
         ("PATIENT ID", #"\b(Patient ID|Patient #|Patient Number)\b[:\s#-]*[A-Z0-9-]{4,}\b"#),
         ("INSURANCE ID", #"\b(Insurance ID|Policy #|Policy Number|Member ID)\b[:\s#-]*[A-Z0-9-]{4,}\b"#),
+        ("ACCOUNT NUMBER", #"\b(Account|Acct|Claim|Member)\b[:\s#-]*[A-Z0-9-]{5,}\b"#),
+        ("PASSPORT NUMBER", #"\b(Passport|PP No|Passport No)\b[:\s#-]*[A-Z0-9]{6,9}\b"#),
         ("PRESCRIPTION NUMBER", #"\b(Rx|Prescription|Prescription #|Rx #)\b[:\s#-]*[A-Z0-9-]{3,}\b"#),
         ("SOCIAL SECURITY NUMBER", #"\b\d{3}-\d{2}-\d{4}\b"#),
         ("DRIVER LICENSE NUMBER", #"\b(DL|DLN|Driver'?s?\s*License|License\s*(No|#|Number))\b[:\s#-]*[A-Z0-9-]{4,}\b"#),
+        ("LICENSE PLATE", #"\b(Plate|License Plate)\b[:\s#-]*[A-Z0-9-]{4,8}\b"#),
+        ("IP ADDRESS", #"\b(?:\d{1,3}\.){3}\d{1,3}\b"#),
         ("EXPIRATION DATE", #"\b(Exp|Expires|Expiry|Expiration Date|Exp Date)\b[:\s]*\d{1,2}[/-]\d{2,4}\b"#),
         ("EXPIRATION DATE", #"\b\d{2}[/-]\d{2,4}\s*(EXP|EXPIRES|EXPIRY)\b"#),
-        ("DATE", #"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#)
+        ("ISSUE DATE", #"\b(Issued|Issue Date)\b[:\s]*\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#),
+        ("DATE", #"\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b"#),
+        ("ORGANIZATION", #"\b(University|Hospital|Clinic|Medical Center|Department)\b[^,\n]{0,24}"#)
     ]
 
     private let keywordMap: [(keyword: String, label: String)] = [
-        ("patient", "PATIENT"),
+        ("patient", "PATIENT NAME"),
         ("dob", "DATE OF BIRTH"),
         ("date of birth", "DATE OF BIRTH"),
         ("mrn", "MEDICAL RECORD NUMBER"),
@@ -35,9 +42,20 @@ final class PHIDetector {
         ("driver's license", "DRIVER LICENSE NUMBER"),
         ("license number", "DRIVER LICENSE NUMBER"),
         ("dln", "DRIVER LICENSE NUMBER"),
+        ("passport", "PASSPORT NUMBER"),
+        ("account", "ACCOUNT NUMBER"),
+        ("claim", "ACCOUNT NUMBER"),
+        ("website", "URL"),
+        ("http", "URL"),
+        ("ip", "IP ADDRESS"),
+        ("issued", "ISSUE DATE"),
+        ("issue date", "ISSUE DATE"),
         ("expiry", "EXPIRATION DATE"),
         ("exp date", "EXPIRATION DATE"),
-        ("expiration date", "EXPIRATION DATE")
+        ("expiration date", "EXPIRATION DATE"),
+        ("university", "ORGANIZATION"),
+        ("hospital", "ORGANIZATION"),
+        ("clinic", "ORGANIZATION")
     ]
 
     func detectPHI(in observations: [OCRTextObservation]) -> [RedactionRegion] {
@@ -80,10 +98,10 @@ final class PHIDetector {
     }
 
     private func paddingForLabel(_ label: String) -> (horizontal: CGFloat, vertical: CGFloat) {
-        if label == "PHONE NUMBER" || label == "EMAIL ADDRESS" || label == "EXPIRATION DATE" {
+        if label == "PHONE NUMBER" || label == "EMAIL ADDRESS" || label == "EXPIRATION DATE" || label == "URL" {
             return (10, 8)
         }
-        if label == "DATE" || label == "DATE OF BIRTH" {
+        if label == "DATE" || label == "DATE OF BIRTH" || label == "ISSUE DATE" {
             return (8, 7)
         }
         return (7, 6)
@@ -188,4 +206,5 @@ final class PHIDetector {
 
         return output
     }
+
 }

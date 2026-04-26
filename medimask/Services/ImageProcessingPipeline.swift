@@ -7,39 +7,61 @@ final class ImageProcessingPipeline {
     private let phiDetector = SensitiveTextRegionDetector()
     private let imageRedactor = ImageRedactor()
 
-    func process(image: UIImage) async throws -> DetectionResult {
+    func analyze(image: UIImage) async -> (image: UIImage, regions: [RedactionRegion], timings: ProcessingTimings) {
         let totalStartedAt = CFAbsoluteTimeGetCurrent()
         let normalizedImage = imageOrientationFixer.normalize(image: image)
 
-        let faceReport = try await faceDetector.detectFacesReport(in: normalizedImage)
+        let faceReport: FaceDetectionReport
+        do {
+            faceReport = try await faceDetector.detectFacesReport(in: normalizedImage)
+        } catch {
+            Logger.app.error("Face detection failed during analysis: \(error.localizedDescription)")
+            faceReport = FaceDetectionReport(regions: [], elapsedMs: 0, backend: "failed-fallback-none")
+        }
 
         let ocrStartedAt = CFAbsoluteTimeGetCurrent()
-        let textObservations = try await ocrService.recognizeText(
-            in: normalizedImage,
-            faceRegions: faceReport.regions
-        )
+        let textObservations: [OCRTextObservation]
+        do {
+            textObservations = try await ocrService.recognizeText(
+                in: normalizedImage,
+                faceRegions: faceReport.regions
+            )
+        } catch {
+            Logger.app.error("OCR failed during analysis: \(error.localizedDescription)")
+            textObservations = []
+        }
         let ocrMs = Self.elapsedMilliseconds(since: ocrStartedAt)
 
         let phiStartedAt = CFAbsoluteTimeGetCurrent()
         let phiReport = await phiDetector.detectPHI(in: textObservations)
         let phiDetectionMs = Self.elapsedMilliseconds(since: phiStartedAt)
 
-        let regions = faceReport.regions + phiReport.regions
+        let timings = ProcessingTimings(
+            faceDetectionMs: faceReport.elapsedMs,
+            ocrMs: ocrMs,
+            phiDetectionMs: phiDetectionMs,
+            redactionMs: 0,
+            totalMs: Self.elapsedMilliseconds(since: totalStartedAt)
+        )
+
+        return (normalizedImage, faceReport.regions + phiReport.regions, timings)
+    }
+
+    func process(image: UIImage) async throws -> DetectionResult {
+        let analysis = await analyze(image: image)
+        let normalizedImage = analysis.image
+        let regions = analysis.regions
 
         let redactionStartedAt = CFAbsoluteTimeGetCurrent()
         let scrubbedImage = imageRedactor.redact(image: normalizedImage, regions: regions)
         let redactionMs = Self.elapsedMilliseconds(since: redactionStartedAt)
 
         let timings = ProcessingTimings(
-            faceDetectionMs: faceReport.elapsedMs,
-            ocrMs: ocrMs,
-            phiDetectionMs: phiDetectionMs,
+            faceDetectionMs: analysis.timings.faceDetectionMs,
+            ocrMs: analysis.timings.ocrMs,
+            phiDetectionMs: analysis.timings.phiDetectionMs,
             redactionMs: redactionMs,
-            totalMs: Self.elapsedMilliseconds(since: totalStartedAt)
-        )
-
-        Logger.app.info(
-            "Pipeline face backend: \(faceReport.backend, privacy: .public); phi backend: \(phiReport.backend, privacy: .public); timings ms - face: \(timings.faceDetectionMs, privacy: .public), ocr: \(timings.ocrMs, privacy: .public), phi: \(timings.phiDetectionMs, privacy: .public), redaction: \(timings.redactionMs, privacy: .public), total: \(timings.totalMs, privacy: .public)"
+            totalMs: analysis.timings.totalMs + redactionMs
         )
 
         return DetectionResult(

@@ -240,11 +240,14 @@ final class MelangeTextAnonymizerService {
 
             let boundedRect = mergedRect.insetBy(dx: -8, dy: -6)
             let averageOCRConfidence = matchingObservations.map(\.observation.confidence).reduce(0, +) / Float(matchingObservations.count)
+            let supportingText = matchingObservations
+                .map(\.observation.text)
+                .joined(separator: " ")
 
             return RedactionRegion(
                 rect: boundedRect,
                 type: .phiText,
-                label: displayLabel(for: entity.label),
+                label: displayLabel(for: entity.label, supportingText: supportingText),
                 confidence: max(entity.confidence, averageOCRConfidence),
                 source: "melange-text-anonymizer",
                 redactionStyle: .blur
@@ -354,12 +357,16 @@ final class MelangeTextAnonymizerService {
         return label
     }
 
-    private func displayLabel(for entityLabel: String) -> String {
+    private func displayLabel(for entityLabel: String, supportingText: String) -> String {
+        let lower = supportingText.lowercased()
         switch entityLabel {
         case "PERSON":
             return "PERSON NAME"
         case "LOCATION":
-            return "LOCATION"
+            if lower.contains("hospital") || lower.contains("clinic") || lower.contains("department") || lower.contains("unit") {
+                return "FACILITY LOCATION"
+            }
+            return "LOCATION ADDRESS"
         case "ADDRESS":
             return "ADDRESS"
         case "EMAIL":
@@ -367,7 +374,16 @@ final class MelangeTextAnonymizerService {
         case "PHONE_NUMBER":
             return "PHONE NUMBER"
         case "DATE":
-            return "DATE"
+            if lower.contains("dob") || lower.contains("date of birth") || lower.contains("birth") {
+                return "DATE OF BIRTH"
+            }
+            if lower.contains("exp") || lower.contains("expires") || lower.contains("expiry") || lower.contains("expiration") {
+                return "EXPIRATION DATE"
+            }
+            if lower.contains("issued") || lower.contains("issue date") {
+                return "ISSUE DATE"
+            }
+            return "UNSPECIFIED DATE"
         case "CREDIT_CARD_NUMBER":
             return "CREDIT CARD NUMBER"
         case "SSN":

@@ -79,18 +79,6 @@ The Xcode project uses filesystem-synced groups, so files added under `medimask/
 - [`docs/demo_script.md`](./docs/demo_script.md) — demo walkthrough
 - [`docs/judging_notes.md`](./docs/judging_notes.md) — judging notes
 
-## Contributing
-
-See [`CONTRIBUTING.md`](./CONTRIBUTING.md).
-
-Quick workflow:
-
-1. Pick your role from [`docs/team_split.md`](./docs/team_split.md).
-2. Branch as `role-a-ui`, `role-b-melange`, `role-c-ocr`, or `role-d-redaction`.
-3. Stay within the files owned by your role.
-4. Announce changes to shared contracts before making them.
-5. Keep the app buildable after each meaningful change.
-
 ## Privacy
 
 MediMask is designed so that photos never leave the device during the core detection and redaction pipeline. Always verify the redacted output before sharing — no automated system is perfect.

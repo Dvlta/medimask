@@ -4,7 +4,7 @@ final class ImageProcessingPipeline {
     private let imageOrientationFixer = ImageOrientationFixer()
     private let faceDetector = MelangeFaceDetector()
     private let ocrService = VisionOCRService()
-    private let phiDetector = PHIDetector()
+    private let phiDetector = SensitiveTextRegionDetector()
     private let imageRedactor = ImageRedactor()
 
     func process(image: UIImage) async throws -> DetectionResult {
@@ -14,14 +14,17 @@ final class ImageProcessingPipeline {
         let faceReport = try await faceDetector.detectFacesReport(in: normalizedImage)
 
         let ocrStartedAt = CFAbsoluteTimeGetCurrent()
-        let textObservations = try await ocrService.recognizeText(in: normalizedImage)
+        let textObservations = try await ocrService.recognizeText(
+            in: normalizedImage,
+            faceRegions: faceReport.regions
+        )
         let ocrMs = Self.elapsedMilliseconds(since: ocrStartedAt)
 
         let phiStartedAt = CFAbsoluteTimeGetCurrent()
-        let phiRegions = phiDetector.detectPHI(in: textObservations)
+        let phiReport = await phiDetector.detectPHI(in: textObservations)
         let phiDetectionMs = Self.elapsedMilliseconds(since: phiStartedAt)
 
-        let regions = faceReport.regions + phiRegions
+        let regions = faceReport.regions + phiReport.regions
 
         let redactionStartedAt = CFAbsoluteTimeGetCurrent()
         let scrubbedImage = imageRedactor.redact(image: normalizedImage, regions: regions)
@@ -36,7 +39,7 @@ final class ImageProcessingPipeline {
         )
 
         Logger.app.info(
-            "Pipeline face backend: \(faceReport.backend, privacy: .public); timings ms - face: \(timings.faceDetectionMs, privacy: .public), ocr: \(timings.ocrMs, privacy: .public), phi: \(timings.phiDetectionMs, privacy: .public), redaction: \(timings.redactionMs, privacy: .public), total: \(timings.totalMs, privacy: .public)"
+            "Pipeline face backend: \(faceReport.backend, privacy: .public); phi backend: \(phiReport.backend, privacy: .public); timings ms - face: \(timings.faceDetectionMs, privacy: .public), ocr: \(timings.ocrMs, privacy: .public), phi: \(timings.phiDetectionMs, privacy: .public), redaction: \(timings.redactionMs, privacy: .public), total: \(timings.totalMs, privacy: .public)"
         )
 
         return DetectionResult(

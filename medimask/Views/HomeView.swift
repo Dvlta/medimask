@@ -14,7 +14,7 @@ struct HomeView: View {
 
     private let pipeline = ImageProcessingPipeline()
     private let ocrService = VisionOCRService()
-    private let phiDetector = PHIDetector()
+    private let phiDetector = SensitiveTextRegionDetector()
 
     var body: some View {
         NavigationStack {
@@ -245,7 +245,7 @@ struct HomeView: View {
         isPreviewScanning = true
         do {
             let textObservations = try await ocrService.recognizeText(in: selectedImage)
-            previewRegions = phiDetector.detectPHI(in: textObservations)
+            previewRegions = await phiDetector.detectPHI(in: textObservations).regions
         } catch {
             Logger.app.error("Preview detection failed: \(error.localizedDescription)")
         }

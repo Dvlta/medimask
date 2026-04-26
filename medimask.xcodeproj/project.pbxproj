@@ -7,8 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E119FD852F9D9F05006937DE /* ZeticMLange in Frameworks */ = {isa = PBXBuildFile; productRef = E119FD842F9D9F05006937DE /* ZeticMLange */; };
 		E13528112F9D4BA600765D94 /* Accelerate.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E13528102F9D4BA600765D94 /* Accelerate.framework */; };
-		E13528132F9D521C00765D94 /* ZeticMLange in Frameworks */ = {isa = PBXBuildFile; productRef = E13528122F9D521C00765D94 /* ZeticMLange */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,7 +58,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E13528132F9D521C00765D94 /* ZeticMLange in Frameworks */,
+				E119FD852F9D9F05006937DE /* ZeticMLange in Frameworks */,
 				E13528112F9D4BA600765D94 /* Accelerate.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -129,7 +129,7 @@
 			);
 			name = medimask;
 			packageProductDependencies = (
-				E13528122F9D521C00765D94 /* ZeticMLange */,
+				E119FD842F9D9F05006937DE /* ZeticMLange */,
 			);
 			productName = medimask;
 			productReference = E13526FC2F9CA9D600765D94 /* medimask.app */;
@@ -214,7 +214,7 @@
 			mainGroup = E13526F32F9CA9D600765D94;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				E135280E2F9D4B4A00765D94 /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */,
+				E119FD832F9D9F05006937DE /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E13526FD2F9CA9D600765D94 /* Products */;
@@ -423,6 +423,8 @@
 				INFOPLIST_KEY_MelangeFaceModelName = "google/MediaPipe-Face-Detection";
 				INFOPLIST_KEY_MelangeFaceModelVersion = "";
 				INFOPLIST_KEY_MelangePersonalKey = ztp_7c8dae5533ee422db0e42d8b52337741;
+				INFOPLIST_KEY_MelangeTextAnonymizerModelName = "Steve/text-anonymizer-v1";
+				INFOPLIST_KEY_MelangeTextAnonymizerModelVersion = "";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MediMask uses the camera to capture healthcare-related photos for local PHI redaction.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "MediMask can save scrubbed photos back to your library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "MediMask imports photos so it can detect and redact sensitive health information locally.";
@@ -458,6 +460,8 @@
 				INFOPLIST_KEY_MelangeFaceModelName = "google/MediaPipe-Face-Detection";
 				INFOPLIST_KEY_MelangeFaceModelVersion = "";
 				INFOPLIST_KEY_MelangePersonalKey = ztp_7c8dae5533ee422db0e42d8b52337741;
+				INFOPLIST_KEY_MelangeTextAnonymizerModelName = "Steve/text-anonymizer-v1";
+				INFOPLIST_KEY_MelangeTextAnonymizerModelVersion = "";
 				INFOPLIST_KEY_NSCameraUsageDescription = "MediMask uses the camera to capture healthcare-related photos for local PHI redaction.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "MediMask can save scrubbed photos back to your library.";
 				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "MediMask imports photos so it can detect and redact sensitive health information locally.";
@@ -589,7 +593,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		E135280E2F9D4B4A00765D94 /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */ = {
+		E119FD832F9D9F05006937DE /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/zetic-ai/ZeticMLangeiOS";
 			requirement = {
@@ -600,9 +604,9 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		E13528122F9D521C00765D94 /* ZeticMLange */ = {
+		E119FD842F9D9F05006937DE /* ZeticMLange */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = E135280E2F9D4B4A00765D94 /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */;
+			package = E119FD832F9D9F05006937DE /* XCRemoteSwiftPackageReference "ZeticMLangeiOS" */;
 			productName = ZeticMLange;
 		};
 /* End XCSwiftPackageProductDependency section */
